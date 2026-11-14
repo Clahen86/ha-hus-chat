@@ -48,6 +48,7 @@ class Chat:
         self.media_dir = Path(hass.config.path("hus_chat"))
         self._timers: dict[str, Any] = {}
         self.users: dict[str, str] = {}
+        self.rules: dict[str, dict[str, Any]] = {}  # what the house writes by itself, and to whom (watch.py)
         self.seen: dict[str, float] = {}  # phone -> last time its location was there (not unavailable)
         self.phones_of: dict[str, list[dict[str, Any]]] = {}  # user id -> their phones, for "My phones"
 
@@ -58,11 +59,12 @@ class Chat:
         self.read = d.get("read", {})
         self.prefs = d.get("prefs", {})
         self.seen = d.get("seen", {})
+        self.rules = d.get("rules", {})
         await self.async_refresh_users()
         await self.hass.async_add_executor_job(lambda: self.media_dir.mkdir(exist_ok=True))
 
     def _save(self) -> None:
-        self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen}, 2)
+        self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules}, 2)
 
     def stop(self) -> None:
         for cancel in self._timers.values():
@@ -126,9 +128,9 @@ class Chat:
     # ---------- messages ----------
     async def post(self, sender: str, text: str = "", *, image: str | None = None, audio: str | None = None,
                    kind: str = "chat", take: bool = False, to: str | list[str] = "all", urgent: bool = False,
-                   title: str | None = None, push: bool = True) -> dict[str, Any]:
+                   title: str | None = None, push: bool = True, topic: str | None = None) -> dict[str, Any]:
         msg = {"id": uuid.uuid4().hex[:12], "t": time.time(), "from": sender, "name": self._name(sender), "text": str(text or "")[:4000], "kind": kind,
-               "image": image, "audio": audio, "take": bool(take), "taken": None, "to": to, "urgent": bool(urgent), "title": title}
+               "image": image, "audio": audio, "take": bool(take), "taken": None, "to": to, "urgent": bool(urgent), "title": title, "topic": topic}
         self.msgs.append(msg)
         if len(self.msgs) > MAX_MESSAGES:
             gone, self.msgs = self.msgs[:-MAX_MESSAGES], self.msgs[-MAX_MESSAGES:]
@@ -148,11 +150,11 @@ class Chat:
     def find(self, msg_id: str) -> dict[str, Any] | None:
         return next((m for m in reversed(self.msgs) if m["id"] == msg_id), None)
 
-    async def take(self, msg_id: str, sender: str) -> dict[str, Any] | None:
+    async def take(self, msg_id: str, sender: str, name: str | None = None) -> dict[str, Any] | None:
         m = self.find(msg_id)
         if not m or m.get("taken"):
             return m
-        m["taken"] = {"by": sender, "name": self._name(sender), "t": time.time()}
+        m["taken"] = {"by": sender, "name": name or self._name(sender), "t": time.time()}
         if cancel := self._timers.pop(msg_id, None):
             cancel()
         self._save()
@@ -173,14 +175,31 @@ class Chat:
         return sum(1 for m in self.msgs if m["t"] > last and m["from"] != me)
 
     def set_prefs(self, user_id: str, prefs: dict[str, Any]) -> dict[str, Any]:
-        cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], **self.prefs.get(user_id, {})}
+        cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], "muted": [], **self.prefs.get(user_id, {})}
         cur.update({k: v for k, v in prefs.items() if k in cur})
         self.prefs[user_id] = cur
         self._save()
         return cur
 
     def get_prefs(self, user_id: str) -> dict[str, Any]:
-        return {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], **self.prefs.get(user_id, {})}
+        return {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], "muted": [],
+                **self.prefs.get(user_id, {})}
+
+    def set_rules(self, rules: dict[str, Any]) -> dict[str, Any]:
+        from .watch import DEFAULT_RULES
+
+        for topic, r in rules.items():
+            if topic in DEFAULT_RULES:
+                cur = {**DEFAULT_RULES[topic], **self.rules.get(topic, {})}
+                cur.update({k: v for k, v in r.items() if k in ("on", "to")})
+                self.rules[topic] = cur
+        self._save()
+        return self.get_rules()
+
+    def get_rules(self) -> dict[str, Any]:
+        from .watch import DEFAULT_RULES
+
+        return {t: {**d, **self.rules.get(t, {})} for t, d in DEFAULT_RULES.items()}
 
     # ---------- to the phones ----------
     def _quiet(self, user_id: str | None) -> bool:
@@ -202,8 +221,17 @@ class Chat:
         elif to == "home" and not everyone:
             home = [p for p in people if p["home"]]
             people = home or people  # nobody home: everyone
-        return [p for p in people if (msg.get("urgent") or not self._quiet(p["user_id"]))
-                and self.prefs.get(p["user_id"] or "", {}).get("push", True) is not False]
+        from .watch import ALWAYS
+
+        def wants(p: dict[str, Any]) -> bool:
+            pr = self.prefs.get(p["user_id"] or "", {})
+            if msg.get("topic") in ALWAYS:
+                return True  # smoke, water, CO: always, also in quiet hours and with messages off
+            if msg.get("topic") and msg["topic"] in (pr.get("muted") or []):
+                return False
+            return (msg.get("urgent") or not self._quiet(p["user_id"])) and pr.get("push", True) is not False
+
+        return [p for p in people if wants(p)]
 
     def _name(self, sender: str) -> str:
         if sender == HOUSE:
@@ -228,7 +256,9 @@ class Chat:
         if msg.get("image"):
             data["image"] = f"/api/hus_chat/media/{msg['image']}"
         if msg.get("urgent"):
-            data.update({"priority": "high", "ttl": 0, "push": {"interruption-level": "time-sensitive"}})
+            # Rings like an alarm, also on silent: a critical alert on iPhone, the alarm stream on Android.
+            data.update({"priority": "high", "ttl": 0, "channel": "alarm_stream", "importance": "high",
+                         "push": {"interruption-level": "critical", "sound": {"name": "default", "critical": 1, "volume": 1.0}}})
         return {"title": title, "message": body, "data": data}
 
     async def _notify(self, svc: str, payload: dict[str, Any]) -> None:

@@ -9,6 +9,10 @@ const T = {
     from: "Fra", to: "Til", push: "Beskeder på telefonen", pushH: "Når appen er lukket, kan du svare direkte i beskeden.",
     bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ for at lukke den, til nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
+    rules: "Beskeder fra huset", rulesH: "Huset skriver selv, når noget sker. Vælg hvem der får hvad.", rulesKid: "Kun en admin kan ændre, hvem der får hvad.",
+    topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm" },
+    topicsH: { machines: "Opvasker, vaskemaskine og tørretumbler (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra" },
+    toHome: "Hjemme", toAll: "Alle", forMe: "Til mig", always: "Altid", on: "Slået til",
     myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
     picture: "Billede", voice: "Lydbesked", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset" },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
@@ -17,6 +21,10 @@ const T = {
     from: "From", to: "To", push: "Messages on the phone", pushH: "When the app is closed you can answer right in the notification.",
     bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ to close it until somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
+    rules: "Messages from the house", rulesH: "The house writes by itself when something happens. Choose who gets what.", rulesKid: "Only an admin can change who gets what.",
+    topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm" },
+    topicsH: { machines: "Dishwasher, washing machine and dryer (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed" },
+    toHome: "At home", toAll: "Everyone", forMe: "For me", always: "Always", on: "On",
     myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
     picture: "Picture", voice: "Voice message", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house" },
 };
@@ -79,7 +87,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .card .h{font-weight:650;font-size:15px}.card .s{font-size:14px;margin-top:3px;white-space:pre-wrap}
 .card .urgent{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:#ff3b5c;border-radius:99px;padding:2px 8px;margin-bottom:6px}
 .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}.chip{font-size:13.5px;font-weight:650;padding:8px 13px;border-radius:99px;background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.chip.go{background:linear-gradient(135deg,#ff6b8a,#7c5cff);color:#fff}
+.chip.go{background:linear-gradient(135deg,#ff6b8a,#7c5cff);color:#fff}.set .chip{background:var(--bubble);box-shadow:none;padding:6px 11px;font-size:13px}.set .chip.go{background:linear-gradient(135deg,#ff6b8a,#7c5cff);color:#fff}.chip:disabled{cursor:default;opacity:.85}
 .done{font-size:12px;color:var(--ok);margin:4px 0 0 4px}
 .pic{display:block;max-width:240px;max-height:300px;width:100%;border-radius:18px;object-fit:cover;cursor:zoom-in;background:var(--line)}
 .time{font-size:10.5px;color:var(--muted);margin:1px 6px 4px}
@@ -104,7 +112,8 @@ textarea::placeholder{color:var(--muted)}
 .dot{width:10px;height:10px;border-radius:50%;background:#ff3b5c;animation:blink 1s infinite}@keyframes blink{50%{opacity:.25}}
 .err{position:absolute;left:50%;bottom:80px;transform:translateX(-50%);background:#ff3b5c;color:#fff;padding:8px 14px;border-radius:99px;font-size:13px;z-index:5}
 .sheet{position:absolute;inset:0;background:var(--bg);z-index:4;display:flex;flex-direction:column;animation:up .2s ease}
-@keyframes up{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+@keyframes up{from{transform:translateY(16px)}to{transform:none}}
+:host([sheet]) .list,:host([sheet]) .bar{display:none}
 .sbody{padding:14px;overflow-y:auto;flex:1}
 .set{background:var(--panel);border-radius:18px;padding:14px;margin-bottom:12px}
 .srow{display:flex;gap:12px;align-items:center}.srow div{flex:1}.srow small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
@@ -148,7 +157,7 @@ class HusChatView extends HTMLElement {
   }
   onEvent(e) {
     if (e.type === "init") {
-      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], ready: true });
+      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, ready: true });
       this.paintTop(); this.paintList(true);
     } else if (e.type === "message") {
       this.msgs.push(e.message); this.paintList(this.nearBottom() || e.message.from === this.me?.id);
@@ -336,6 +345,7 @@ class HusChatView extends HTMLElement {
   }
   paintSheet() {
     this.shadowRoot.querySelector(".sheet")?.remove();
+    this.toggleAttribute("sheet", !!this.sheet);
     this.paintTop();
     if (!this.sheet) { this.paintList(true); return; }
     const t = this.t, p = this.prefs, el = document.createElement("div");
@@ -349,6 +359,7 @@ class HusChatView extends HTMLElement {
     } else {
       const sw = (k) => `<button class="sw ${p[k] ? "on" : ""}" data-a="pref" data-k="${k}" role="switch" aria-checked="${!!p[k]}"></button>`;
       el.innerHTML = `<div class="sbody">
+        ${this.rulesCard()}
         <div class="set"><div class="srow"><div><b>${t.quiet}</b><small>${t.quietH}</small></div>${sw("quiet")}</div>
           ${p.quiet ? `<div class="times"><label>${t.from}<input type="time" value="${esc(p.quiet_from)}" data-time="quiet_from"></label><label>${t.to}<input type="time" value="${esc(p.quiet_to)}" data-time="quiet_to"></label></div>` : ""}</div>
         <div class="set"><div class="srow"><div><b>${t.push}</b><small>${t.pushH}</small></div>${sw("push")}</div></div>
@@ -360,6 +371,27 @@ class HusChatView extends HTMLElement {
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
     }
     this.shadowRoot.appendChild(el);
+  }
+  rulesCard() {
+    const t = this.t, R = this.rules || {}, admin = this.me?.admin, muted = new Set(this.prefs.muted || []);
+    const rows = Object.keys(t.topics).filter((k) => R[k]).map((k) => {
+      const r = R[k], list = Array.isArray(r.to) ? new Set(r.to) : null;
+      const chip = (val, label, on) => `<button class="chip ${on ? "go" : ""}" data-a="ruleto" data-k="${k}" data-v="${esc(val)}" ${admin ? "" : "disabled"}>${esc(label)}</button>`;
+      const who = `<div class="chips" style="margin-top:8px">${chip("home", t.toHome, r.to === "home")}${chip("all", t.toAll, r.to === "all")}
+        ${this.people.map((p) => chip(p.id, p.name.split(" ")[0], !!list?.has(p.id))).join("")}</div>`;
+      const mine = k === "safety" ? `<small style="color:var(--ok)">${t.always}</small>`
+        : `<button class="sw ${muted.has(k) ? "" : "on"}" data-a="mute" data-k="${k}" role="switch" aria-checked="${!muted.has(k)}" aria-label="${esc(t.forMe)}"></button>`;
+      return `<div style="padding:12px 0;border-top:1px solid var(--line)"><div class="srow"><div><b>${t.topics[k]}</b><small>${t.topicsH[k]}</small></div>
+        ${admin ? `<button class="sw ${r.on ? "on" : ""}" data-a="ruleon" data-k="${k}" role="switch" aria-checked="${r.on}" aria-label="${esc(t.on)}"></button>` : ""}</div>
+        ${r.on ? `${who}<div class="srow" style="margin-top:8px"><div><small>${t.forMe}</small></div>${mine}</div>` : ""}</div>`;
+    }).join("");
+    return `<div class="set"><b>${t.rules}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 6px">${admin ? t.rulesH : t.rulesKid}</small>${rows}</div>`;
+  }
+  async setRule(k, change) {
+    this.rules = { ...this.rules, [k]: { ...this.rules[k], ...change } };
+    this.paintSheet();
+    try { this.rules = await this.hass.connection.sendMessagePromise({ type: "hus_chat/rules", rules: { [k]: change } }); } catch (e) { this.error(this.t.failed); }
+    this.paintSheet();
   }
   click(e) {
     const b = e.target.closest("[data-a]");
@@ -379,6 +411,20 @@ class HusChatView extends HTMLElement {
     else if (a === "help") { this.sheet = "help"; this.paintSheet(); }
     else if (a === "unsheet") { this.sheet = this.sheet === "help" ? "settings" : null; this.paintSheet(); }
     else if (a === "pref") this.setPref(b.dataset.k, !this.prefs[b.dataset.k]);
+    else if (a === "ruleon") this.setRule(b.dataset.k, { on: !this.rules[b.dataset.k].on });
+    else if (a === "ruleto") {
+      const k = b.dataset.k, v = b.dataset.v, cur = this.rules[k].to;
+      if (v === "home" || v === "all") this.setRule(k, { to: v });
+      else {
+        const set = new Set(Array.isArray(cur) ? cur : []);
+        set.has(v) ? set.delete(v) : set.add(v);
+        this.setRule(k, { to: set.size ? [...set] : "home" });
+      }
+    } else if (a === "mute") {
+      const m = new Set(this.prefs.muted || []);
+      m.has(b.dataset.k) ? m.delete(b.dataset.k) : m.add(b.dataset.k);
+      this.setPref("muted", [...m]);
+    }
     else if (a === "phone") {
       const off = new Set(this.prefs.phones_off || []);
       off.has(b.dataset.svc) ? off.delete(b.dataset.svc) : off.add(b.dataset.svc);

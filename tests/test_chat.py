@@ -170,3 +170,47 @@ async def test_an_old_phone_can_be_turned_off_and_one_gone_for_30_days_is_skippe
     await c.post("person.lilly", "Hej")
     await hass.async_block_till_done()
     assert not calls["Wictor"] and len(calls["Claus"]) == 1
+
+
+async def test_machine_done_then_emptied(hass: HomeAssistant, chat) -> None:
+    c, calls = chat
+    hass.bus.async_fire("appliance_watch_finished", {"entry_id": "e1", "name": "Vaskemaskine", "kind": "washing_machine"})
+    await hass.async_block_till_done()
+    m = c.msgs[-1]
+    assert m["topic"] == "machines" and "Vaskemaskine" in m["title"] and m["take"]
+    assert len(calls["Lilly"]) == 1 and not calls["Wictor"]  # only those at home
+    hass.bus.async_fire("appliance_watch_emptied", {"entry_id": "e1", "name": "Vaskemaskine"})
+    await hass.async_block_till_done()
+    assert m["taken"]["by"] == HOUSE
+    assert calls["Lilly"][-1].data["message"] == "clear_notification"
+
+
+async def test_smoke_rings_on_everyone_even_in_quiet_hours_and_muted(hass: HomeAssistant, chat) -> None:
+    c, calls = chat
+    c.set_prefs("u-wictor", {"quiet": True, "quiet_from": "00:00", "quiet_to": "23:59", "muted": ["safety"], "push": False})
+    hass.states.async_set("binary_sensor.roeg_koekken", "off", {"device_class": "smoke", "friendly_name": "Røg køkken"})
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.roeg_koekken", "on", {"device_class": "smoke", "friendly_name": "Røg køkken"})
+    await hass.async_block_till_done()
+    assert c.msgs[-1]["urgent"] and c.msgs[-1]["topic"] == "safety"
+    data = calls["Wictor"][-1].data["data"]
+    assert data["channel"] == "alarm_stream" and data["push"]["sound"]["critical"] == 1  # rings like an alarm
+
+
+async def test_who_gets_what_and_muting(hass: HomeAssistant, chat) -> None:
+    c, calls = chat
+    c.set_rules({"doorbell": {"to": ["person.wictor"]}})
+    hass.states.async_set("event.doerklokke", "2026-11-14T10:00:00", {"device_class": "doorbell"})
+    await hass.async_block_till_done()
+    hass.states.async_set("event.doerklokke", "2026-11-14T10:05:00", {"device_class": "doorbell"})
+    await hass.async_block_till_done()
+    assert len(calls["Wictor"]) == 1 and not calls["Lilly"] and not calls["Claus"]
+    c.set_prefs("u-lilly", {"muted": ["machines"]})
+    hass.bus.async_fire("appliance_watch_finished", {"entry_id": "e2", "name": "Opvasker", "kind": "dishwasher"})
+    await hass.async_block_till_done()
+    assert not calls["Lilly"] and len(calls["Claus"]) == 1
+    c.set_rules({"machines": {"on": False}})
+    n = len(c.msgs)
+    hass.bus.async_fire("appliance_watch_finished", {"entry_id": "e3", "name": "Tørretumbler", "kind": "dryer"})
+    await hass.async_block_till_done()
+    assert len(c.msgs) == n  # turned off for the family

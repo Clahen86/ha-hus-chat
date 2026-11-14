@@ -56,6 +56,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
     entry.runtime_data = chat
     entry.async_on_unload(chat.stop)
     entry.async_on_unload(hass.bus.async_listen("mobile_app_notification_action", chat.on_action))
+    from .watch import Watch
+
+    watch = Watch(hass, chat)  # what the house writes by itself
+    watch.start()
+    entry.async_on_unload(watch.stop)
 
     async def send(call: ServiceCall) -> ServiceResponse:
         image = None

@@ -15,7 +15,7 @@ from .const import DOMAIN, SHOWN, SIGNAL
 
 
 def async_setup(hass: HomeAssistant) -> None:
-    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs):
+    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules):
         websocket_api.async_register_command(hass, cmd)
 
 
@@ -47,7 +47,8 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     connection.send_result(msg["id"])
     connection.send_message(websocket_api.event_message(msg["id"], {
         "type": "init", "messages": chat.msgs[-SHOWN:], "people": chat.people(), "me": _me(chat, connection),
-        "unread": chat.unread(uid), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, [])}))
+        "unread": chat.unread(uid), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, []),
+        "rules": chat.get_rules()}))
 
 
 @websocket_api.websocket_command({
@@ -105,6 +106,7 @@ def ws_read(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
     vol.Optional("push"): bool,
     vol.Optional("bubble"): bool,
     vol.Optional("phones_off"): [str],
+    vol.Optional("muted"): [str],
 })
 @callback
 def ws_prefs(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -115,3 +117,23 @@ def ws_prefs(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     prefs = chat.set_prefs(connection.user.id, {k: v for k, v in msg.items() if k not in ("id", "type")})
     chat.people()  # "My phones" again
     connection.send_result(msg["id"], {**prefs, "phones": chat.phones_of.get(connection.user.id, [])})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/rules",
+    vol.Optional("rules"): {str: {vol.Optional("on"): bool, vol.Optional("to"): vol.Any(vol.In(["home", "all"]), [str])}},
+})
+@callback
+def ws_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """What the house writes by itself, and to whom - everyone can see it, only admins change it."""
+    chat = _chat(hass)
+    if not chat:
+        connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
+        return
+    if msg.get("rules"):
+        if not connection.user.is_admin:
+            connection.send_error(msg["id"], "unauthorized", "Only admins choose this for the family")
+            return
+        connection.send_result(msg["id"], chat.set_rules(msg["rules"]))
+        return
+    connection.send_result(msg["id"], chat.get_rules())
