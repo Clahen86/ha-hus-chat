@@ -49,6 +49,7 @@ class Chat:
         self._timers: dict[str, Any] = {}
         self.users: dict[str, str] = {}
         self.rules: dict[str, dict[str, Any]] = {}  # what the house writes by itself, and to whom (watch.py)
+        self.agent: str | None = None  # the AI that answers for the house - None: the one Assist uses
         self.seen: dict[str, float] = {}  # phone -> last time its location was there (not unavailable)
         self.phones_of: dict[str, list[dict[str, Any]]] = {}  # user id -> their phones, for "My phones"
 
@@ -60,11 +61,12 @@ class Chat:
         self.prefs = d.get("prefs", {})
         self.seen = d.get("seen", {})
         self.rules = d.get("rules", {})
+        self.agent = d.get("agent")
         await self.async_refresh_users()
         await self.hass.async_add_executor_job(lambda: self.media_dir.mkdir(exist_ok=True))
 
     def _save(self) -> None:
-        self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules}, 2)
+        self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules, "agent": self.agent}, 2)
 
     def stop(self) -> None:
         for cancel in self._timers.values():
@@ -196,6 +198,25 @@ class Chat:
         self._save()
         return self.get_rules()
 
+    # ---------- who answers for the house (any AI set up in Home Assistant) ----------
+    def assist_agent(self) -> str | None:
+        """The conversation agent of the preferred Assist pipeline - what answers when nothing is chosen."""
+        try:
+            from homeassistant.components.assist_pipeline import async_get_pipeline
+
+            return async_get_pipeline(self.hass).conversation_engine
+        except Exception:  # noqa: BLE001 - no Assist pipeline: Home Assistant's own agent
+            return None
+
+    def agents(self) -> dict[str, Any]:
+        found = [{"id": s.entity_id, "name": s.name} for s in self.hass.states.async_all("conversation")]
+        return {"chosen": self.agent, "assist": self.assist_agent(), "list": sorted(found, key=lambda a: a["name"].lower())}
+
+    def set_agent(self, agent: str | None) -> dict[str, Any]:
+        self.agent = agent or None
+        self._save()
+        return self.agents()
+
     def get_rules(self) -> dict[str, Any]:
         from .watch import DEFAULT_RULES
 
@@ -305,11 +326,15 @@ class Chat:
     async def ask_house(self, user_id: str | None, text: str) -> dict[str, Any]:
         from homeassistant.components import conversation
 
+        agent = self.agent or self.assist_agent()  # the chosen AI, or the one Assist uses
+        if agent and not self.hass.states.get(agent) and agent != "conversation.home_assistant":
+            agent = None  # removed since: Home Assistant's own
+        key = f"{user_id or ''}|{agent or ''}"  # a conversation goes on with the same AI
         try:
-            res = await conversation.async_converse(self.hass, text, self.conversations.get(user_id or ""), Context(user_id=user_id),
-                                                    language=self.hass.config.language)
+            res = await conversation.async_converse(self.hass, text, self.conversations.get(key), Context(user_id=user_id),
+                                                    language=self.hass.config.language, agent_id=agent)
             if res.conversation_id:
-                self.conversations[user_id or ""] = res.conversation_id
+                self.conversations[key] = res.conversation_id
             answer = ((res.response.speech or {}).get("plain") or {}).get("speech") or "✓"
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Assist did not answer", exc_info=True)

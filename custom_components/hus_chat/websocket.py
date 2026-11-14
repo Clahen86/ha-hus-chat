@@ -15,7 +15,7 @@ from .const import DOMAIN, SHOWN, SIGNAL
 
 
 def async_setup(hass: HomeAssistant) -> None:
-    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules):
+    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules, ws_agent):
         websocket_api.async_register_command(hass, cmd)
 
 
@@ -48,7 +48,7 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     connection.send_message(websocket_api.event_message(msg["id"], {
         "type": "init", "messages": chat.msgs[-SHOWN:], "people": chat.people(), "me": _me(chat, connection),
         "unread": chat.unread(uid), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, []),
-        "rules": chat.get_rules()}))
+        "rules": chat.get_rules(), "agents": chat.agents()}))
 
 
 @websocket_api.websocket_command({
@@ -137,3 +137,24 @@ def ws_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
         connection.send_result(msg["id"], chat.set_rules(msg["rules"]))
         return
     connection.send_result(msg["id"], chat.get_rules())
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/agent", vol.Optional("agent"): vol.Any(None, str)})
+@callback
+def ws_agent(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Who answers for the house: any AI set up in Home Assistant - everyone can see it, only admins change it."""
+    chat = _chat(hass)
+    if not chat:
+        connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
+        return
+    if "agent" in msg:
+        if not connection.user.is_admin:
+            connection.send_error(msg["id"], "unauthorized", "Only admins choose this for the family")
+            return
+        agent = msg["agent"]
+        if agent and not agent.startswith("conversation."):
+            connection.send_error(msg["id"], "invalid", "Not an AI")
+            return
+        connection.send_result(msg["id"], chat.set_agent(agent))
+        return
+    connection.send_result(msg["id"], chat.agents())

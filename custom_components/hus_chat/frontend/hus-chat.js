@@ -7,7 +7,7 @@ import { defineSuggest } from "./suggest.js";
 const T = {
   da: { family: "Familien", home: "{names} er hjemme", homeOne: "{names} er hjemme", nobody: "Ingen er hjemme", write: "Skriv en besked …",
     ask: "Spørg eller styr huset …", toHouse: "Til huset", house: "Huset", today: "I dag", yesterday: "I går", take: "✋ Jeg tager den",
-    took: "✓ {name} tog den", you: "dig", settings: "Indstillinger", quiet: "Stille timer", quietH: "Kun det, der haster (røg, vand …), kommer igennem.",
+    took: "✓ {name} tog den", you: "dig", settings: "Indstillinger", agentT: "🤖 Hvem svarer for huset", agentH: "Den AI, der svarer, når du skriver eller taler til huset. Tilføj flere under Indstillinger → Enheder og tjenester (fx Google AI, OpenAI, Ollama).", asAssist: "Som i Assist", builtin: "Home Assistant", quiet: "Stille timer", quietH: "Kun det, der haster (røg, vand …), kommer igennem.",
     from: "Fra", to: "Til", push: "Beskeder på telefonen", pushH: "Når appen er lukket, kan du svare direkte i beskeden.",
     bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
@@ -19,7 +19,7 @@ const T = {
     picture: "Billede", voice: "Lydbesked", listen: "Lytter … sig det til huset", noStt: "Tale er ikke sat op i Assist – skriv i stedet.", heard: "Hørte ikke noget – prøv igen.", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset" },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
-    took: "✓ {name} took it", you: "you", settings: "Settings", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
+    took: "✓ {name} took it", you: "you", settings: "Settings", agentT: "🤖 Who answers for the house", agentH: "The AI that answers when you write or speak to the house. Add more under Settings → Devices & services (e.g. Google AI, OpenAI, Ollama).", asAssist: "As in Assist", builtin: "Home Assistant", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
     from: "From", to: "To", push: "Messages on the phone", pushH: "When the app is closed you can answer right in the notification.",
     bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
@@ -160,7 +160,7 @@ class HusChatView extends HTMLElement {
   }
   onEvent(e) {
     if (e.type === "init") {
-      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, ready: true });
+      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, agents: e.agents || null, ready: true });
       this.paintTop(); this.paintList(true);
     } else if (e.type === "message") {
       this.msgs.push(e.message); this.paintList(this.nearBottom() || e.message.from === this.me?.id);
@@ -435,6 +435,7 @@ class HusChatView extends HTMLElement {
       const sw = (k) => `<button class="sw ${p[k] ? "on" : ""}" data-a="pref" data-k="${k}" role="switch" aria-checked="${!!p[k]}"></button>`;
       el.innerHTML = `<div class="sbody">
         ${this.rulesCard()}
+        ${this.agentCard()}
         <div class="set"><div class="srow"><div><b>${t.quiet}</b><small>${t.quietH}</small></div>${sw("quiet")}</div>
           ${p.quiet ? `<div class="times"><label>${t.from}<input type="time" value="${esc(p.quiet_from)}" data-time="quiet_from"></label><label>${t.to}<input type="time" value="${esc(p.quiet_to)}" data-time="quiet_to"></label></div>` : ""}</div>
         <div class="set"><div class="srow"><div><b>${t.push}</b><small>${t.pushH}</small></div>${sw("push")}</div></div>
@@ -444,6 +445,7 @@ class HusChatView extends HTMLElement {
             <button class="sw ${x.on ? "on" : ""}" data-a="phone" data-svc="${esc(x.svc)}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}"></button></div>`).join("")}</div>` : ""}
         ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
+      el.querySelector("[data-agent]")?.addEventListener("change", (e) => this.setAgent(e.target.value));
       if (this.me?.admin) this.addSuggest(el.firstChild, "card");  // only admins can install
     }
     this.shadowRoot.appendChild(el);
@@ -460,6 +462,20 @@ class HusChatView extends HTMLElement {
     if (!this[k]) { this[k] = document.createElement(defineSuggest("hus_chat")); this[k].setAttribute("mode", mode); }
     this[k].hass = this.hass;
     return this[k];
+  }
+  agentCard() {  // which AI answers "to the house" - any conversation agent set up in Home Assistant
+    const t = this.t, A = this.agents;
+    if (!A) return "";
+    const name = (id) => A.list.find((a) => a.id === id)?.name || (id === "conversation.home_assistant" || !id ? t.builtin : id);
+    const opts = [`<option value="" ${!A.chosen ? "selected" : ""}>${esc(t.asAssist)} (${esc(name(A.assist))})</option>`,
+      ...A.list.map((a) => `<option value="${esc(a.id)}" ${a.id === A.chosen ? "selected" : ""}>${esc(a.name)}</option>`)].join("");
+    return `<div class="set"><b>${t.agentT}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 10px">${t.agentH}</small>
+      ${this.me?.admin ? `<select data-agent style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:14px">${opts}</select>`
+        : `<div style="font-weight:600">${esc(A.chosen ? name(A.chosen) : `${t.asAssist} (${name(A.assist)})`)}</div>`}</div>`;
+  }
+  async setAgent(agent) {
+    try { this.agents = await this.hass.connection.sendMessagePromise({ type: "hus_chat/agent", agent: agent || null }); }
+    catch (e) { this.error(this.t.failed); }
   }
   rulesCard() {
     const t = this.t, R = this.rules || {}, admin = this.me?.admin, muted = new Set(this.prefs.muted || []);

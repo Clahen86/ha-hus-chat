@@ -1,7 +1,7 @@
 {
   "domain": "hus_chat",
   "name": "House Chat",
-  "after_dependencies": ["camera", "conversation", "mobile_app", "person"],
+  "after_dependencies": ["assist_pipeline", "camera", "conversation", "mobile_app", "person"],
   "codeowners": ["@Clahen86"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "panel_custom", "websocket_api"],
@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/Clahen86/ha-hus-chat/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.4.5"
+  "version": "0.5.0"
 }

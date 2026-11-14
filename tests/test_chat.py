@@ -225,3 +225,31 @@ async def test_a_freezer_that_stopped_rings_everyone_and_clears(hass: HomeAssist
     hass.bus.async_fire("appliance_watch_alert", {"entry_id": "f1", "name": "Fryser", "kind": "freezer", "reason": "stopped", "ok": True})
     await hass.async_block_till_done()
     assert m["taken"]["by"] == HOUSE
+
+
+async def test_the_chosen_ai_answers_for_the_house(hass: HomeAssistant, chat) -> None:
+    """Nothing chosen: the AI the Assist pipeline uses. Chosen: that one - and a removed one falls back to Home Assistant's."""
+    from types import SimpleNamespace
+
+    import sys
+
+    c, _ = chat
+    hass.states.async_set("conversation.google_ai", "unknown", {"friendly_name": "Google AI"})
+    seen = []
+
+    async def converse(_hass, text, conversation_id, context, language=None, agent_id=None):
+        seen.append(agent_id)
+        return SimpleNamespace(conversation_id="c1", response=SimpleNamespace(speech={"plain": {"speech": "Ja"}}))
+
+    with patch.dict(sys.modules, {"homeassistant.components.conversation": SimpleNamespace(async_converse=converse)}), \
+            patch.object(type(c), "assist_agent", lambda self: "conversation.google_ai"):
+        assert c.agents()["assist"] == "conversation.google_ai" and c.agents()["chosen"] is None
+        m = await c.ask_house("u-claus", "Er døren låst?")
+        assert m["text"] == "Ja" and seen[-1] == "conversation.google_ai"
+        hass.states.async_set("conversation.openai", "unknown", {"friendly_name": "OpenAI"})
+        assert c.set_agent("conversation.openai")["chosen"] == "conversation.openai"
+        await c.ask_house("u-claus", "Og køkkenet?")
+        assert seen[-1] == "conversation.openai"
+        hass.states.async_remove("conversation.openai")
+        await c.ask_house("u-claus", "Hej")
+        assert seen[-1] is None
