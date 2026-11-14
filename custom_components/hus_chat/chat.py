@@ -422,7 +422,7 @@ class Chat:
                 "counts": {"persons": sum(1 for p in people if p["id"].startswith("person.")), "people": len(people),
                            "phones": sum(len(p["phones"]) for p in people), "quiet_users": sum(1 for p in self.prefs.values() if p.get("quiet"))},
                 "features": {**{f"msg_{k}": bool(v.get("on")) for k, v in rules.items()},
-                             **{f"to_{k}": str(v.get("to") if isinstance(v.get("to"), str) else "persons") for k, v in rules.items()},
+                             **{f"to_{k}": (v.get("to") if v.get("to") in ("home", "all", "everyone") else "persons") for k, v in rules.items()},  # never a person's id
                              "own_ai": bool(self.agent)}}
 
     def summary(self) -> dict[str, Any]:
