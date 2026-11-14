@@ -27,7 +27,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, SIGNAL, TEXT
+from .const import DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, SIGNAL, STALE_S, TEXT
 
 _LOGGER = logging.getLogger(__name__)
 MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a|mp3|aac)$")
@@ -48,6 +48,8 @@ class Chat:
         self.media_dir = Path(hass.config.path("hus_chat"))
         self._timers: dict[str, Any] = {}
         self.users: dict[str, str] = {}
+        self.seen: dict[str, float] = {}  # phone -> last time its location was there (not unavailable)
+        self.phones_of: dict[str, list[dict[str, Any]]] = {}  # user id -> their phones, for "My phones"
 
     # ---------- storage ----------
     async def async_load(self) -> None:
@@ -55,11 +57,12 @@ class Chat:
         self.msgs = d.get("msgs", [])
         self.read = d.get("read", {})
         self.prefs = d.get("prefs", {})
+        self.seen = d.get("seen", {})
         await self.async_refresh_users()
         await self.hass.async_add_executor_job(lambda: self.media_dir.mkdir(exist_ok=True))
 
     def _save(self) -> None:
-        self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs}, 2)
+        self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen}, 2)
 
     def stop(self) -> None:
         for cancel in self._timers.values():
@@ -83,6 +86,7 @@ class Chat:
                                  "home": st.state == "home", "phones": [], "_trackers": set(st.attributes.get("device_trackers") or [])}
         by_user = {p["user_id"]: p for p in out.values() if p["user_id"]}
         ents = er.async_get(self.hass)
+        now, phones_of, changed = time.time(), {}, False
         for entry in self.hass.config_entries.async_entries("mobile_app"):
             name, uid = entry.data.get("device_name"), entry.data.get("user_id")
             svc = f"mobile_app_{slugify(name or '')}"
@@ -97,8 +101,19 @@ class Chat:
                 p = out[f"user.{uid}"] = {"id": f"user.{uid}", "name": self.users[uid], "user_id": uid, "picture": None,
                                           "home": bool(st and st.state == "home"), "phones": [], "_trackers": set()}
                 by_user[uid] = p
-            if svc not in p["phones"]:
+            # An old phone: turned off under "My phones", or its location gone for 30 days.
+            tst = self.hass.states.get(tracker) if tracker else None
+            if tst and tst.state not in ("unavailable", "unknown") and now - self.seen.get(svc, 0) > 3600:
+                self.seen[svc], changed = now, True
+            self.seen.setdefault(svc, now)
+            stale = now - self.seen[svc] > STALE_S
+            off = svc in (self.prefs.get(uid or "", {}).get("phones_off") or [])
+            phones_of.setdefault(uid, []).append({"svc": svc, "name": name, "on": not off, "stale": stale})
+            if svc not in p["phones"] and not off and not stale:
                 p["phones"].append(svc)
+        self.phones_of = phones_of
+        if changed:
+            self._save()
         return sorted(({k: v for k, v in p.items() if k != "_trackers"} for p in out.values()), key=lambda p: p["name"].lower())
 
     def person_of(self, user_id: str | None) -> dict[str, Any] | None:
@@ -158,14 +173,14 @@ class Chat:
         return sum(1 for m in self.msgs if m["t"] > last and m["from"] != me)
 
     def set_prefs(self, user_id: str, prefs: dict[str, Any]) -> dict[str, Any]:
-        cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, **self.prefs.get(user_id, {})}
+        cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], **self.prefs.get(user_id, {})}
         cur.update({k: v for k, v in prefs.items() if k in cur})
         self.prefs[user_id] = cur
         self._save()
         return cur
 
     def get_prefs(self, user_id: str) -> dict[str, Any]:
-        return {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, **self.prefs.get(user_id, {})}
+        return {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], **self.prefs.get(user_id, {})}
 
     # ---------- to the phones ----------
     def _quiet(self, user_id: str | None) -> bool:

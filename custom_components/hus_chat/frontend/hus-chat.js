@@ -9,6 +9,7 @@ const T = {
     from: "Fra", to: "Til", push: "Beskeder på telefonen", pushH: "Når appen er lukket, kan du svare direkte i beskeden.",
     bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ for at lukke den, til nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
+    myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
     picture: "Billede", voice: "Lydbesked", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset" },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
@@ -16,6 +17,7 @@ const T = {
     from: "From", to: "To", push: "Messages on the phone", pushH: "When the app is closed you can answer right in the notification.",
     bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ to close it until somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
+    myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
     picture: "Picture", voice: "Voice message", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house" },
 };
 const COLORS = ["#ff8a65", "#4db6ac", "#9575cd", "#4fc3f7", "#f06292", "#aed581", "#ffb74d", "#7986cb"];
@@ -146,7 +148,7 @@ class HusChatView extends HTMLElement {
   }
   onEvent(e) {
     if (e.type === "init") {
-      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, ready: true });
+      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], ready: true });
       this.paintTop(); this.paintList(true);
     } else if (e.type === "message") {
       this.msgs.push(e.message); this.paintList(this.nearBottom() || e.message.from === this.me?.id);
@@ -328,7 +330,7 @@ class HusChatView extends HTMLElement {
   }
   async setPref(k, v) {
     this.prefs = { ...this.prefs, [k]: v };
-    try { this.prefs = await this.hass.connection.sendMessagePromise({ type: "hus_chat/prefs", [k]: v }); } catch (e) { /* kept locally */ }
+    try { const r = await this.hass.connection.sendMessagePromise({ type: "hus_chat/prefs", [k]: v }); this.phones = r.phones || this.phones; delete r.phones; this.prefs = r; } catch (e) { /* kept locally */ }
     window.dispatchEvent(new CustomEvent("hus-chat-prefs", { detail: this.prefs }));
     if (this.sheet === "settings") this.paintSheet();
   }
@@ -351,6 +353,9 @@ class HusChatView extends HTMLElement {
           ${p.quiet ? `<div class="times"><label>${t.from}<input type="time" value="${esc(p.quiet_from)}" data-time="quiet_from"></label><label>${t.to}<input type="time" value="${esc(p.quiet_to)}" data-time="quiet_to"></label></div>` : ""}</div>
         <div class="set"><div class="srow"><div><b>${t.push}</b><small>${t.pushH}</small></div>${sw("push")}</div></div>
         <div class="set"><div class="srow"><div><b>${t.bubble}</b><small>${t.bubbleH}</small></div>${sw("bubble")}</div></div>
+        ${(this.phones || []).length ? `<div class="set"><b>${t.myPhones}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 6px">${t.myPhonesH}</small>
+          ${this.phones.map((x) => `<div class="srow" style="margin-top:10px"><div>📱 ${esc(x.name)}${x.stale ? `<small>${t.stale}</small>` : ""}</div>
+            <button class="sw ${x.on ? "on" : ""}" data-a="phone" data-svc="${esc(x.svc)}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}"></button></div>`).join("")}</div>` : ""}
         ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
     }
@@ -374,6 +379,11 @@ class HusChatView extends HTMLElement {
     else if (a === "help") { this.sheet = "help"; this.paintSheet(); }
     else if (a === "unsheet") { this.sheet = this.sheet === "help" ? "settings" : null; this.paintSheet(); }
     else if (a === "pref") this.setPref(b.dataset.k, !this.prefs[b.dataset.k]);
+    else if (a === "phone") {
+      const off = new Set(this.prefs.phones_off || []);
+      off.has(b.dataset.svc) ? off.delete(b.dataset.svc) : off.add(b.dataset.svc);
+      this.setPref("phones_off", [...off]);
+    }
     else if (a === "close") this.dispatchEvent(new CustomEvent("close", { bubbles: true, composed: true }));
   }
 }

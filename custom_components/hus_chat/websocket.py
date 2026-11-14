@@ -47,7 +47,7 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     connection.send_result(msg["id"])
     connection.send_message(websocket_api.event_message(msg["id"], {
         "type": "init", "messages": chat.msgs[-SHOWN:], "people": chat.people(), "me": _me(chat, connection),
-        "unread": chat.unread(uid), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid)}))
+        "unread": chat.unread(uid), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, [])}))
 
 
 @websocket_api.websocket_command({
@@ -104,6 +104,7 @@ def ws_read(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
     vol.Optional("quiet_to"): vol.Match(r"^\d{2}:\d{2}$"),
     vol.Optional("push"): bool,
     vol.Optional("bubble"): bool,
+    vol.Optional("phones_off"): [str],
 })
 @callback
 def ws_prefs(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -111,4 +112,6 @@ def ws_prefs(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     if not chat:
         connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
         return
-    connection.send_result(msg["id"], chat.set_prefs(connection.user.id, {k: v for k, v in msg.items() if k not in ("id", "type")}))
+    prefs = chat.set_prefs(connection.user.id, {k: v for k, v in msg.items() if k not in ("id", "type")})
+    chat.people()  # "My phones" again
+    connection.send_result(msg["id"], {**prefs, "phones": chat.phones_of.get(connection.user.id, [])})

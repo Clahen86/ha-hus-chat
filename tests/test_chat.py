@@ -153,3 +153,20 @@ async def test_someone_with_only_the_app_is_in_it(hass: HomeAssistant, chat) -> 
                         context=Context(user_id="u-claus"))
     await hass.async_block_till_done()
     assert c.msgs[-1]["from"] == "user.u-claus" and c.msgs[-1]["name"] == "Claus"
+
+
+async def test_an_old_phone_can_be_turned_off_and_one_gone_for_30_days_is_skipped(hass: HomeAssistant, chat) -> None:
+    import time as _time
+
+    c, calls = chat
+    c.set_prefs("u-claus", {"phones_off": ["mobile_app_claus_phone"]})
+    assert next(p for p in c.people() if p["name"] == "Claus")["phones"] == []
+    assert c.phones_of["u-claus"][0]["on"] is False
+    c.set_prefs("u-claus", {"phones_off": []})
+    hass.states.async_set("device_tracker.wictor", "unavailable")
+    c.seen["mobile_app_wictor_phone"] = _time.time() - 31 * 86400
+    assert next(p for p in c.people() if p["name"] == "Wictor")["phones"] == []
+    assert c.phones_of["u-wictor"][0]["stale"] is True
+    await c.post("person.lilly", "Hej")
+    await hass.async_block_till_done()
+    assert not calls["Wictor"] and len(calls["Claus"]) == 1
