@@ -68,7 +68,7 @@ Pictures and voice messages are kept in `/config/hus_chat` on your own Home Assi
 
 ### Help and answers
 
-Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach up to 3 pictures. It goes privately to the developer with a short diagnosis (no names, messages or passwords) – only when you press *Send*. When the developer answers, the answer shows there with a notification in Home Assistant, and you can write back. Errors in the app are sent anonymously so they can be fixed; turn it off under 🛟 Help.
+Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach up to 3 pictures. It goes privately to the developer with a short diagnosis (no names, messages or passwords) – only when you press *Send*. When the developer answers, the answer shows there with a notification in Home Assistant, and you can write back. Errors in the app are sent anonymously so they can be fixed, once a day with how it is set up (which AI, how many phones, which house messages are on – never names or messages); turn it off under 🛟 Help. *Share my setup* there also sends the full entity names.
 
 ## Dansk
 
@@ -106,7 +106,7 @@ Godt at vide: den gratis udgave har en daglig grænse, som er langt mere, end en
 
 ### Hjælp og svar
 
-Indstillinger (⚙️ i chatten) → **🛟 Hjælp** for at skrive, hvad der er galt, og vedhæfte op til 3 billeder. Det går privat til udvikleren med en kort diagnose (ingen navne, beskeder eller koder) – kun når du trykker *Send*. Når udvikleren svarer, står svaret dér, og du får en besked i Home Assistant. Du kan skrive tilbage derfra. Fejl i appen sendes anonymt, så de kan blive rettet; slå det fra under 🛟 Hjælp.
+Indstillinger (⚙️ i chatten) → **🛟 Hjælp** for at skrive, hvad der er galt, og vedhæfte op til 3 billeder. Det går privat til udvikleren med en kort diagnose (ingen navne, beskeder eller koder) – kun når du trykker *Send*. Når udvikleren svarer, står svaret dér, og du får en besked i Home Assistant. Du kan skrive tilbage derfra. Fejl i appen sendes anonymt, så de kan blive rettet, én gang om dagen sammen med opsætningen (hvilken AI, antal telefoner, hvilke beskeder fra huset der er slået til – aldrig navne eller beskeder); slå det fra under 🛟 Hjælp. *Del min opsætning* dér sender også de fulde entity-navne.
 
 ## License
 

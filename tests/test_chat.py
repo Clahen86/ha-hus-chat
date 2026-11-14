@@ -308,3 +308,16 @@ async def test_an_ai_that_hangs_is_given_up(hass: HomeAssistant, chat) -> None:
             patch("custom_components.hus_chat.chat.AI_TIMEOUT_S", 0.05):
         m = await c.ask_house("u-claus", "Fortæl en historie")
         assert m["note"] and m["text"] == "Forstod ikke"
+
+
+async def test_setup_for_the_developer(hass: HomeAssistant, chat) -> None:
+    """The daily setup: counts and which messages are on - never names."""
+    from custom_components.hus_chat.support import Support
+
+    c, _ = chat
+    s = Support(hass, DOMAIN, "hus-chat", "House Chat")
+    info = c.setup_info(s)
+    assert info["counts"]["phones"] == 3 and info["counts"]["persons"] == 2
+    assert info["features"]["msg_machines"] is True and info["features"]["msg_alarm"] is False
+    text = str(info)
+    assert "Lilly" not in text and "Wictor" not in text and "Claus" not in text

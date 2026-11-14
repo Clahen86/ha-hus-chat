@@ -96,6 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
     from .support import Support
 
     support = Support(hass, DOMAIN, "hus-chat", TITLES.get(hass.config.language.split("-")[0], DEFAULT_TITLE), summary=chat.summary)
+    support.setup = lambda: chat.setup_info(support)  # how it is set up, for the developer (names cleaned)
     await support.async_setup()
     entry.async_on_unload(support.unload)
     return True

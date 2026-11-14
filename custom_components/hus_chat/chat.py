@@ -393,6 +393,38 @@ class Chat:
         except Exception:  # noqa: BLE001
             return name
 
+    def setup_info(self, support: Any) -> dict[str, Any]:
+        """How House Chat is set up - for the developer (support.py, once a day, names cleaned unless the user shares
+        them): which AI answers for the house, how many phones and persons, which house messages are on. Never names,
+        messages or who wrote what."""
+        reg = er.async_get(self.hass)
+        devices = []
+        chosen = self.agent or self.assist_agent()
+        if chosen:
+            ent = reg.async_get(chosen)
+            devices.append({"kind": "ai", "platform": ent.platform if ent else ("builtin" if chosen == BUILTIN_AGENT else chosen.split(".")[0]),
+                            **support.device(ent.device_id if ent else None),
+                            "ok": time.time() >= self._ai_down.get(chosen, 0),
+                            "entities": [support.entity(chosen, "chosen" if self.agent else "assist")] if self.hass.states.get(chosen) else [],
+                            "extra": {"own_choice": bool(self.agent), "builtin": chosen == BUILTIN_AGENT}})
+        try:
+            from homeassistant.components.assist_pipeline import async_get_pipeline
+
+            pl = async_get_pipeline(self.hass)
+            for kind, eng in (("stt", pl.stt_engine), ("tts", pl.tts_engine)):
+                if eng:
+                    ent = reg.async_get(eng) if "." in str(eng) else None
+                    devices.append({"kind": kind, "platform": ent.platform if ent else str(eng).split(".")[0][:40]})
+        except Exception:  # noqa: BLE001 - no Assist pipeline
+            pass
+        people, rules = self.people(), self.get_rules()
+        return {"devices": devices,
+                "counts": {"persons": sum(1 for p in people if p["id"].startswith("person.")), "people": len(people),
+                           "phones": sum(len(p["phones"]) for p in people), "quiet_users": sum(1 for p in self.prefs.values() if p.get("quiet"))},
+                "features": {**{f"msg_{k}": bool(v.get("on")) for k, v in rules.items()},
+                             **{f"to_{k}": str(v.get("to") if isinstance(v.get("to"), str) else "persons") for k, v in rules.items()},
+                             "own_ai": bool(self.agent)}}
+
     def summary(self) -> dict[str, Any]:
         people = self.people()
         return {"people": len(people), "with_phone": sum(1 for p in people if p["phones"]), "messages": len(self.msgs),
