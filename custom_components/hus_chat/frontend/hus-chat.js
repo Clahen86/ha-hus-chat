@@ -1,6 +1,7 @@
 // House Chat (Hus-chat) - loaded by Home Assistant on every page (the chat bubble) and as the sidebar panel.
 // No build step. The bubble can be dragged, and dropped on ✕ to close it until somebody writes again.
 import { defineSupport } from "./support.js";
+import { defineSuggest } from "./suggest.js";
 
 const T = {
   da: { family: "Familien", home: "{names} er hjemme", homeOne: "{names} er hjemme", nobody: "Ingen er hjemme", write: "Skriv en besked …",
@@ -358,6 +359,7 @@ class HusChatView extends HTMLElement {
       this._sup = this._sup || document.createElement(defineSupport("hus_chat"));
       this._sup.hass = this.hass;
       el.firstChild.appendChild(this._sup);
+      el.firstChild.appendChild(this.suggest("list"));
     } else {
       const sw = (k) => `<button class="sw ${p[k] ? "on" : ""}" data-a="pref" data-k="${k}" role="switch" aria-checked="${!!p[k]}"></button>`;
       el.innerHTML = `<div class="sbody">
@@ -371,8 +373,15 @@ class HusChatView extends HTMLElement {
             <button class="sw ${x.on ? "on" : ""}" data-a="phone" data-svc="${esc(x.svc)}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}"></button></div>`).join("")}</div>` : ""}
         ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
+      if (this.me?.admin) el.firstChild.appendChild(this.suggest("card"));  // only admins can install
     }
     this.shadowRoot.appendChild(el);
+  }
+  suggest(mode) {  // "Fits your home too" / "From the same developer" - kept between draws
+    const k = `_sg_${mode}`;
+    if (!this[k]) { this[k] = document.createElement(defineSuggest("hus_chat")); this[k].setAttribute("mode", mode); }
+    this[k].hass = this.hass;
+    return this[k];
   }
   rulesCard() {
     const t = this.t, R = this.rules || {}, admin = this.me?.admin, muted = new Set(this.prefs.muted || []);
