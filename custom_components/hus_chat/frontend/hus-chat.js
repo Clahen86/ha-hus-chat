@@ -16,7 +16,7 @@ const T = {
     topicsH: { machines: "Maskiner færdige, og fryser eller affugter med problemer (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra" },
     toHome: "Hjemme", toAll: "Alle", forMe: "Til mig", always: "Altid", on: "Slået til",
     myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
-    picture: "Billede", voice: "Lydbesked", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset" },
+    picture: "Billede", voice: "Lydbesked", listen: "Lytter … sig det til huset", noStt: "Tale er ikke sat op i Assist – skriv i stedet.", heard: "Hørte ikke noget – prøv igen.", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset" },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
     took: "✓ {name} took it", you: "you", settings: "Settings", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
@@ -28,7 +28,7 @@ const T = {
     topicsH: { machines: "Machines done, and a freezer or dehumidifier in trouble (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed" },
     toHome: "At home", toAll: "Everyone", forMe: "For me", always: "Always", on: "On",
     myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
-    picture: "Picture", voice: "Voice message", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house" },
+    picture: "Picture", voice: "Voice message", listen: "Listening … tell the house", noStt: "Speech isn't set up in Assist – type instead.", heard: "Didn't catch that – try again.", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house" },
 };
 const COLORS = ["#ff8a65", "#4db6ac", "#9575cd", "#4fc3f7", "#f06292", "#aed581", "#ffb74d", "#7986cb"];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -101,8 +101,8 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .dur{font-size:12px;opacity:.8;min-width:32px;text-align:right}
 .empty{margin:auto;text-align:center;color:var(--muted);padding:20px}.empty .logo{width:72px;height:72px;border-radius:22px;margin:0 auto 14px}.empty b{display:block;color:var(--text);font-size:17px;margin-bottom:4px}
 .bar{display:flex;gap:8px;align-items:flex-end;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line);flex:none}
-.field{flex:1;display:flex;align-items:flex-end;gap:4px;background:var(--bubble);border-radius:22px;padding:4px 4px 4px 14px;min-height:44px}
-textarea{flex:1;border:0;background:none;color:var(--text);font:inherit;font-size:15px;resize:none;max-height:120px;padding:9px 0;outline:none;line-height:1.35}
+.field{flex:1;min-width:0;display:flex;align-items:flex-end;gap:4px;background:var(--bubble);border-radius:22px;padding:4px 4px 4px 14px;min-height:44px}
+textarea{flex:1;min-width:0;width:100%;border:0;background:none;color:var(--text);font:inherit;font-size:15px;resize:none;max-height:120px;padding:9px 0;outline:none;line-height:1.35}
 textarea::placeholder{color:var(--muted)}
 .hb{height:36px;border-radius:18px;padding:0 10px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650;color:var(--muted);flex:none}
 .hb .mini{width:22px;height:22px;border-radius:7px;overflow:hidden;filter:grayscale(1);opacity:.7}.hb .mini svg{width:100%;height:100%;display:block}
@@ -255,6 +255,12 @@ class HusChatView extends HTMLElement {
   paintBar() {
     const t = this.t, bar = this.$(".bar");
     if (!bar) return;
+    if (this.listening) {
+      bar.innerHTML = `<button class="round cam" data-a="lcancel" aria-label="${t.cancel}">${ICON.close}</button>
+        <div class="recbar"><span class="dot"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.listen}</span></div>
+        <button class="round go" data-a="lsend" aria-label="Send">${ICON.send}</button>`;
+      return;
+    }
     if (this.rec) {
       bar.innerHTML = `<button class="round cam" data-a="reccancel" aria-label="${t.cancel}">${ICON.close}</button>
         <div class="recbar"><span class="dot"></span><span>${t.rec}</span><span class="rectime" style="margin-left:auto">0:00</span></div>
@@ -314,6 +320,70 @@ class HusChatView extends HTMLElement {
       }, 250);
       this.paintBar();
     } catch (e) { this.error(this.t.micNo); }
+  }
+  // "To the house" by voice, like Home Assistant's own voice commands: Assist's speech-to-text listens, stops by itself
+  // when you stop talking, and the words are sent to the house - no voice message to send yourself.
+  async listen() {
+    const t = this.t, conn = this.hass?.connection;
+    if (!conn || this.listening) return;
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (e) { this.error(t.micNo); return; }
+    const L = this.listening = { stream, handler: null, queue: [], pending: [], ended: false, done: false, start: Date.now() };
+    this.paintBar();
+    const send = (pcm) => {  // the handler id first, then 16-bit samples at 16 kHz
+      const d = new Uint8Array(1 + pcm.byteLength); d[0] = L.handler; d.set(new Uint8Array(pcm.buffer), 1); conn.socket.send(d);
+    };
+    L.end = () => { if (L.ended) return; L.ended = true; if (L.handler != null) conn.socket.send(new Uint8Array([L.handler])); };
+    L.finish = (text, err) => {
+      if (L.done) return;
+      L.done = true; this.stopListen(true);
+      if (err) { this.error(err); return; }
+      if (!text?.trim() || !L.voice) { this.error(t.heard); return; }  // nobody spoke: never send what the engine made up from silence
+      this.text = text.trim(); this.toHouse = true; this.send();
+    };
+    try {
+      const ctx = L.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const code = `class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor("hc-mic",P)`;
+      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type: "application/javascript" })));
+      const node = L.node = new AudioWorkletNode(ctx, "hc-mic");
+      ctx.createMediaStreamSource(stream).connect(node);
+      const k = ctx.sampleRate / 16000;
+      node.port.onmessage = (e) => {
+        if (L.ended) return;
+        // Our own ears too: was anyone talking, and has it been quiet for 1.2 s since (in case Assist doesn't say so)
+        let sum = 0; for (const v of e.data) sum += v * v;
+        const loud = Math.sqrt(sum / e.data.length) > 0.02, now = Date.now();
+        if (loud) { L.voice = true; L.quietFrom = 0; } else if (L.voice) { L.quietFrom = L.quietFrom || now; if (now - L.quietFrom > 1200) L.end(); }
+        else if (now - L.start > 6000) L.end();  // nothing said in 6 s
+        L.pending.push(...e.data);
+        const n = Math.floor(L.pending.length / k);
+        if (n < 1024) return;  // about 64 ms at a time
+        const pcm = new Int16Array(n);
+        for (let i = 0; i < n; i++) { const v = L.pending[Math.floor(i * k)]; pcm[i] = Math.max(-1, Math.min(1, v)) * 0x7fff; }
+        L.pending = L.pending.slice(Math.floor(n * k));
+        if (L.handler == null) L.queue.push(pcm); else send(pcm);
+      };
+      L.unsub = await conn.subscribeMessage((ev) => {
+        if (ev.type === "run-start") { L.handler = ev.data?.runner_data?.stt_binary_handler_id; L.queue.forEach(send); L.queue = []; }
+        else if (ev.type === "stt-vad-end") L.end();
+        else if (ev.type === "stt-end") L.finish(ev.data?.stt_output?.text);
+        else if (ev.type === "error") L.finish("", ev.data?.code === "stt-no-text-recognized" ? t.heard : t.noStt);
+        else if (ev.type === "run-end") L.finish("", L.done ? null : t.heard);
+      }, { type: "assist_pipeline/run", start_stage: "stt", end_stage: "stt", input: { sample_rate: 16000 }, timeout: 60 });
+      L.timer = setTimeout(() => L.end(), 15000);  // at most 15 s
+    } catch (e) { L.finish("", t.noStt); }
+  }
+  endListen() { this.listening?.end(); }
+  stopListen(keep) {
+    const L = this.listening;
+    if (!L) return;
+    this.listening = null; L.ended = true; clearTimeout(L.timer);
+    try { L.node?.disconnect(); L.ctx?.close(); } catch (e) { /* closed */ }
+    L.stream.getTracks().forEach((x) => x.stop());
+    if (typeof L.unsub === "function") L.unsub().catch?.(() => {});
+    if (!keep) L.done = true;
+    this.paintBar();
   }
   stopRec(send) {
     const rec = this.rec;
@@ -419,7 +489,9 @@ class HusChatView extends HTMLElement {
     if (a === "send") this.send();
     else if (a === "house") { this.toHouse = !this.toHouse; this.paintBar(); this.$("textarea")?.focus(); }
     else if (a === "take") this.hass.connection.sendMessagePromise({ type: "hus_chat/take", message: b.dataset.id }).catch(() => {});
-    else if (a === "rec") this.startRec();
+    else if (a === "rec") { if (this.toHouse) this.listen(); else this.startRec(); }
+    else if (a === "lsend") this.endListen();
+    else if (a === "lcancel") this.stopListen();
     else if (a === "recsend") this.stopRec(true);
     else if (a === "reccancel") this.stopRec(false);
     else if (a === "play") this.play(b);
