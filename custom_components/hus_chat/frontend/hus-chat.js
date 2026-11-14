@@ -1,5 +1,6 @@
 // House Chat (Hus-chat) - loaded by Home Assistant on every page (the chat bubble) and as the sidebar panel.
-// No build step. The bubble can be dragged, and dropped on ✕ to close it until somebody writes again.
+// No build step. The bubble can be dragged, and dropped on ✕ to tuck it away as a small tab at the edge of the screen -
+// a tap on the tab brings it back, and so does a new message.
 import { defineSupport } from "./support.js";
 import { defineSuggest } from "./suggest.js";
 
@@ -8,7 +9,7 @@ const T = {
     ask: "Spørg eller styr huset …", toHouse: "Til huset", house: "Huset", today: "I dag", yesterday: "I går", take: "✋ Jeg tager den",
     took: "✓ {name} tog den", you: "dig", settings: "Indstillinger", quiet: "Stille timer", quietH: "Kun det, der haster (røg, vand …), kommer igennem.",
     from: "Fra", to: "Til", push: "Beskeder på telefonen", pushH: "Når appen er lukket, kan du svare direkte i beskeden.",
-    bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ for at lukke den, til nogen skriver.",
+    bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
     rules: "Beskeder fra huset", rulesH: "Huset skriver selv, når noget sker. Vælg hvem der får hvad.", rulesKid: "Kun en admin kan ændre, hvem der får hvad.",
     topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm" },
@@ -20,7 +21,7 @@ const T = {
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
     took: "✓ {name} took it", you: "you", settings: "Settings", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
     from: "From", to: "To", push: "Messages on the phone", pushH: "When the app is closed you can answer right in the notification.",
-    bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ to close it until somebody writes.",
+    bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
     rules: "Messages from the house", rulesH: "The house writes by itself when something happens. Choose who gets what.", rulesKid: "Only an admin can change who gets what.",
     topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm" },
@@ -480,6 +481,13 @@ const BUBBLE_CSS = `
 .x{position:fixed;left:50%;bottom:40px;width:64px;height:64px;margin-left:-32px;border-radius:50%;background:rgba(20,20,30,.75);color:#fff;display:grid;place-items:center;
   font:28px/1 sans-serif;z-index:2147482999;opacity:0;transform:scale(.6);transition:all .18s;pointer-events:none;backdrop-filter:blur(6px)}
 .x.show{opacity:1;transform:scale(1)}.x.hot{background:#ff3b5c;transform:scale(1.2)}
+.tab{position:fixed;width:16px;height:52px;z-index:2147483000;cursor:pointer;background:linear-gradient(160deg,#ff6b8a,#7c5cff);box-shadow:0 6px 18px rgba(60,30,120,.4);
+  animation:peek .3s ease;-webkit-tap-highlight-color:transparent}
+.tab.right{right:0;border-radius:14px 0 0 14px}.tab.left{left:0;border-radius:0 14px 14px 0}
+.tab::after{content:"";position:absolute;top:50%;width:4px;height:20px;margin-top:-10px;border-radius:2px;background:rgba(255,255,255,.75)}
+.tab.right::after{left:5px}.tab.left::after{right:5px}
+.tab::before{content:"";position:absolute;inset:-12px -6px}
+@keyframes peek{from{transform:scaleX(0)}to{transform:none}}
 .toast{position:fixed;z-index:2147483000;max-width:min(280px,70vw);padding:10px 14px;border-radius:18px;background:#fff;color:#151829;box-shadow:0 10px 30px rgba(0,0,0,.25);
   font:14px/1.35 -apple-system,"Inter",Roboto,sans-serif;animation:pop .25s ease;cursor:pointer}
 .toast b{display:block;font-size:12.5px;color:#7c5cff;margin-bottom:2px}
@@ -504,9 +512,11 @@ class Bubble {
     this.host.id = "hus-chat-bubble";
     document.body.appendChild(this.host);
     this.root = this.host.attachShadow({ mode: "open" });
-    this.root.innerHTML = `<style>${BUBBLE_CSS}</style><div class="x">✕</div>
+    this.root.innerHTML = `<style>${BUBBLE_CSS}</style><div class="x">✕</div><div class="tab" role="button" tabindex="0" aria-label="${tr(h).family}" hidden></div>
       <div class="head" role="button" tabindex="0" aria-label="${tr(h).family}"><div class="face">${LOGO("b")}</div><span class="badge" hidden></span></div>`;
-    this.head = this.root.querySelector(".head"); this.x = this.root.querySelector(".x");
+    this.head = this.root.querySelector(".head"); this.x = this.root.querySelector(".x"); this.tab = this.root.querySelector(".tab");
+    this.tab.addEventListener("click", () => this.unclose());  // closed: a small tab at the edge brings the bubble back
+    this.tab.addEventListener("keydown", (e) => { if (e.key === "Enter") this.unclose(); });
     this.place(); requestAnimationFrame(() => this.place()); this.drag();
     window.addEventListener("resize", () => this.place());
     window.addEventListener("hus-chat-prefs", (e) => { this.prefs = e.detail; this.show(); });
@@ -536,8 +546,9 @@ class Bubble {
       haHass()?.connection.sendMessagePromise({ type: "hus_chat/read", t: 0 }).then((r) => { this.unread = r.unread; this.badge(); }).catch(() => {});
     }
     this.wasPanel = panel;
-    const hide = this.onPanel() || this.prefs.bubble === false || (this.dismissed && !this.open);
-    this.head.style.display = hide ? "none" : "";
+    const off = this.onPanel() || this.prefs.bubble === false, closed = !!this.dismissed && !this.open;
+    this.head.style.display = off || closed ? "none" : "";
+    this.tab.hidden = off || !closed;
     if (this.onPanel() && this.open) this.toggle(false);
   }
   badge() {
@@ -548,6 +559,7 @@ class Bubble {
     const w = innerWidth || document.documentElement.clientWidth, h = innerHeight || document.documentElement.clientHeight, p = this.pos || { side: "right", y: h - 170 };
     const y = Math.max(70, Math.min(h - 80, p.y));
     this.head.style.left = (p.side === "left" ? 14 : w - 74) + "px"; this.head.style.top = y + "px";
+    this.tab.className = `tab ${p.side === "left" ? "left" : "right"}`; this.tab.style.top = y + 4 + "px";
   }
   drag() {
     let sx, sy, ox, oy, moved = false, down = false;
@@ -574,7 +586,12 @@ class Bubble {
     });
   }
   overX(e) { const r = this.x.getBoundingClientRect(); return Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) < 70; }
-  close() {  // gone until somebody writes
+  unclose() {
+    this.dismissed = 0;
+    try { localStorage.removeItem("hus-chat-closed"); } catch (x) { /* private */ }
+    this.show();
+  }
+  close() {  // tucked away as a tab at the edge until it's tapped or somebody writes
     this.dismissed = Date.now() / 1000;
     try { localStorage.setItem("hus-chat-closed", String(this.dismissed)); } catch (x) { /* private */ }
     this.toggle(false); this.show();
