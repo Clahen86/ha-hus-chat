@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from datetime import datetime, time as dtime
+import asyncio
 import logging
 from pathlib import Path
 import re
@@ -27,7 +28,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import AI_RETRY_S, BUILTIN_AGENT, DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, NOTE_FALLBACK, SIGNAL, STALE_S, TEXT
+from .const import AI_RETRY_S, AI_TIMEOUT_S, BUILTIN_AGENT, DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, NOTE_FALLBACK, SIGNAL, STALE_S, TEXT
 
 _LOGGER = logging.getLogger(__name__)
 MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a|mp3|aac)$")
@@ -327,44 +328,46 @@ class Chat:
 
     # ---------- the house answers (Assist) ----------
     async def ask_house(self, user_id: str | None, text: str) -> dict[str, Any]:
-        """The chosen AI answers - and if it can't (its free quota used up, offline), Home Assistant's own Assist does,
-        with a small note why. A failed AI isn't tried again for 30 minutes, so nobody waits for the same error."""
+        """Like Assist with "prefer local commands": Home Assistant's own Assist first - "turn off the lights" is done at
+        once - and only what it doesn't understand goes to the chosen AI. If the AI can't answer (quota used up, offline,
+        no answer in 45 s), Home Assistant's answer is used with a small note, and the AI rests for 30 minutes."""
         agent = self.agent or self.assist_agent()  # the chosen AI, or the one Assist uses
         if agent and not self.hass.states.get(agent) and agent != BUILTIN_AGENT:
             agent = None  # removed since: Home Assistant's own
         note = None
-        if agent and agent != BUILTIN_AGENT:
-            if time.time() < self._ai_down.get(agent, 0):
-                answer = None
-            else:
-                answer = await self._converse(agent, text, user_id)
+        if not agent or agent == BUILTIN_AGENT:
+            answer = await self._converse(None, text, user_id, builtin=True)
+        elif (answer := await self._converse(None, text, user_id)) is None:  # not a command Home Assistant knows
+            if time.time() >= self._ai_down.get(agent, 0):
+                answer = await self._converse(agent, text, user_id, timeout=AI_TIMEOUT_S)
                 if answer is None:
                     self._ai_down[agent] = time.time() + AI_RETRY_S
             if answer is None:
                 st = self.hass.states.get(agent)
                 note = NOTE_FALLBACK.get((self.hass.config.language or "en").split("-")[0], NOTE_FALLBACK["en"]).format(name=st.name if st else agent)
                 answer = await self._converse(None, text, user_id, builtin=True)
-        else:
-            answer = await self._converse(agent, text, user_id, builtin=True)
         return await self.post(HOUSE, answer or "🤷", kind="assist", push=False, note=note)
 
-    async def _converse(self, agent: str | None, text: str, user_id: str | None, builtin: bool = False) -> str | None:
-        """One question to one agent. None when an AI fails - Home Assistant's own always gives its answer."""
+    async def _converse(self, agent: str | None, text: str, user_id: str | None, builtin: bool = False,
+                        timeout: float | None = None) -> str | None:
+        """One question to one agent (None: Home Assistant's own). None when it can't answer - unless builtin, then
+        Home Assistant's answer is given whatever it is ("Sorry, I didn't understand")."""
         from homeassistant.components import conversation
 
         key = f"{user_id or ''}|{agent or ''}"  # a conversation goes on with the same AI
         try:
-            res = await conversation.async_converse(self.hass, text, self.conversations.get(key), Context(user_id=user_id),
-                                                    language=self.hass.config.language, agent_id=agent)
-        except Exception:  # noqa: BLE001
+            res = await asyncio.wait_for(conversation.async_converse(
+                self.hass, text, self.conversations.get(key), Context(user_id=user_id), language=self.hass.config.language,
+                agent_id=agent), timeout)
+        except Exception:  # noqa: BLE001 - also a timeout
             _LOGGER.warning("Assist did not answer (%s)", agent or "Home Assistant", exc_info=True)
-            return None if not builtin else "🤷"
+            return "🤷" if builtin else None
         if res.conversation_id:
             self.conversations[key] = res.conversation_id
         kind = getattr(res.response, "response_type", None)
         speech = ((res.response.speech or {}).get("plain") or {}).get("speech")
         if not builtin and getattr(kind, "value", kind) == "error":
-            _LOGGER.info("%s could not answer: %s", agent, speech)
+            _LOGGER.debug("%s could not answer: %s", agent or "Home Assistant", speech)
             return None
         return speech or "✓"
 

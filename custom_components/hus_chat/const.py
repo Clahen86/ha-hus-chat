@@ -31,6 +31,7 @@ TEXT = {
 
 BUILTIN_AGENT = "conversation.home_assistant"  # Home Assistant's own Assist - always there, no quota
 AI_RETRY_S = 30 * 60  # an AI that failed isn't asked again for this long
+AI_TIMEOUT_S = 45  # no answer from the AI in this long: Home Assistant's own answers
 NOTE_FALLBACK = {
     "da": "Svaret af Home Assistant – {name} svarede ikke", "en": "Answered by Home Assistant – {name} didn't answer",
     "de": "Beantwortet von Home Assistant – {name} hat nicht geantwortet", "sv": "Besvarat av Home Assistant – {name} svarade inte",

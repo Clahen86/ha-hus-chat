@@ -35,7 +35,7 @@ Under ⚙️ → **Messages from the house** an admin picks who gets each kind: 
 
 ### Who answers for the house – your own AI
 
-Under ⚙️ → **🤖 Who answers for the house** an admin picks the AI: any assistant set up in Home Assistant – Google AI, OpenAI, Ollama (local), Home Assistant's own Assist … By default it follows the assistant you chose in Assist. Written and spoken questions go to the same AI, and it remembers the conversation, so you can ask on ("and the kitchen?"). No API keys in House Chat – you connect the AI in Home Assistant, as usual. If the AI can't answer (its free quota is used up, or it's offline), Home Assistant's own Assist answers instead, with a small note – and the AI is tried again after 30 minutes.
+Under ⚙️ → **🤖 Who answers for the house** an admin picks the AI: any assistant set up in Home Assistant – Google AI, OpenAI, Ollama (local), Home Assistant's own Assist … By default it follows the assistant you chose in Assist. Like Assist's *prefer local commands*, Home Assistant's own Assist tries first – "turn off the lights" is done at once – and only what it doesn't understand goes to the AI. Written and spoken questions go to the same AI, and it remembers the conversation, so you can ask on ("and the kitchen?"). No API keys in House Chat – you connect the AI in Home Assistant, as usual. If the AI can't answer (its free quota is used up, it's offline, or no answer in 45 seconds), Home Assistant's own Assist answers instead, with a small note – and the AI is tried again after 30 minutes.
 
 #### Free AI with Google Gemini (5 minutes)
 
@@ -93,7 +93,7 @@ Under ⚙️ → **Beskeder fra huset** vælger en admin, hvem der får hvad: *h
 
 ### Hvem svarer for huset – din egen AI
 
-Under ⚙️ → **🤖 Hvem svarer for huset** vælger en admin AI'en: enhver assistent, der er sat op i Home Assistant – Google AI, OpenAI, Ollama (lokal), Home Assistants egen Assist … Som standard følger den den assistent, du har valgt i Assist. Skrevne og talte spørgsmål går til samme AI, og den husker samtalen, så du kan spørge videre ("og i køkkenet?"). Ingen API-nøgler i Hus-chat – du tilkobler AI'en i Home Assistant, som du plejer. Kan AI'en ikke svare (den gratis grænse er brugt op, eller den er offline), svarer Home Assistants egen Assist i stedet med en lille note – og AI'en prøves igen efter 30 minutter.
+Under ⚙️ → **🤖 Hvem svarer for huset** vælger en admin AI'en: enhver assistent, der er sat op i Home Assistant – Google AI, OpenAI, Ollama (lokal), Home Assistants egen Assist … Som standard følger den den assistent, du har valgt i Assist. Ligesom Assists *foretræk lokale kommandoer* prøver Home Assistants egen Assist først – "sluk lyset" klares med det samme – og kun det, den ikke forstår, går til AI'en. Skrevne og talte spørgsmål går til samme AI, og den husker samtalen, så du kan spørge videre ("og i køkkenet?"). Ingen API-nøgler i Hus-chat – du tilkobler AI'en i Home Assistant, som du plejer. Kan AI'en ikke svare (den gratis grænse er brugt op, den er offline, eller intet svar på 45 sekunder), svarer Home Assistants egen Assist i stedet med en lille note – og AI'en prøves igen efter 30 minutter.
 
 #### Gratis AI med Google Gemini (5 minutter)
 

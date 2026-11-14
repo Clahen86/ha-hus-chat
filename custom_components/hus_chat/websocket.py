@@ -77,7 +77,8 @@ async def ws_send(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
     chat.mark_read(connection.user.id, m["t"])
     connection.send_result(msg["id"], {"id": m["id"]})
     if msg["to_house"] and text:
-        await chat.ask_house(connection.user.id, text)
+        # On its own, not tied to this connection: a phone that sleeps or loses the network still gets the answer.
+        hass.async_create_background_task(chat.ask_house(connection.user.id, text), f"{DOMAIN} ask the house")
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/take", vol.Required("message"): str})
