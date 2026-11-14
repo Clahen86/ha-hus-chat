@@ -253,3 +253,29 @@ async def test_the_chosen_ai_answers_for_the_house(hass: HomeAssistant, chat) ->
         hass.states.async_remove("conversation.openai")
         await c.ask_house("u-claus", "Hej")
         assert seen[-1] is None
+
+
+async def test_falls_back_to_home_assistant_when_the_ai_cant_answer(hass: HomeAssistant, chat) -> None:
+    """A used-up AI: Home Assistant's own Assist answers with a note, and the AI isn't asked again for 30 minutes."""
+    import sys
+    from types import SimpleNamespace
+
+    c, _ = chat
+    hass.states.async_set("conversation.google_ai", "unknown", {"friendly_name": "Google AI"})
+    c.set_agent("conversation.google_ai")
+    seen = []
+
+    async def converse(_hass, text, conversation_id, context, language=None, agent_id=None):
+        seen.append(agent_id)
+        if agent_id == "conversation.google_ai":
+            return SimpleNamespace(conversation_id="g", response=SimpleNamespace(response_type=SimpleNamespace(value="error"),
+                                                                                  speech={"plain": {"speech": "Quota exceeded"}}))
+        return SimpleNamespace(conversation_id="h", response=SimpleNamespace(response_type=SimpleNamespace(value="action_done"),
+                                                                              speech={"plain": {"speech": "Slukket"}}))
+
+    with patch.dict(sys.modules, {"homeassistant.components.conversation": SimpleNamespace(async_converse=converse)}):
+        m = await c.ask_house("u-claus", "Sluk lyset")
+        assert seen == ["conversation.google_ai", None]
+        assert m["text"] == "Slukket" and "Google AI" in m["note"]
+        await c.ask_house("u-claus", "Tænd lyset")
+        assert seen[2:] == [None]  # not asked again within 30 minutes

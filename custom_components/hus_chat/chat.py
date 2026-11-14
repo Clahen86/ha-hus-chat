@@ -27,7 +27,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, SIGNAL, STALE_S, TEXT
+from .const import AI_RETRY_S, BUILTIN_AGENT, DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, NOTE_FALLBACK, SIGNAL, STALE_S, TEXT
 
 _LOGGER = logging.getLogger(__name__)
 MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a|mp3|aac)$")
@@ -50,6 +50,7 @@ class Chat:
         self.users: dict[str, str] = {}
         self.rules: dict[str, dict[str, Any]] = {}  # what the house writes by itself, and to whom (watch.py)
         self.agent: str | None = None  # the AI that answers for the house - None: the one Assist uses
+        self._ai_down: dict[str, float] = {}  # an AI that failed (used up, offline) -> not tried again before this time
         self.seen: dict[str, float] = {}  # phone -> last time its location was there (not unavailable)
         self.phones_of: dict[str, list[dict[str, Any]]] = {}  # user id -> their phones, for "My phones"
 
@@ -130,9 +131,11 @@ class Chat:
     # ---------- messages ----------
     async def post(self, sender: str, text: str = "", *, image: str | None = None, audio: str | None = None,
                    kind: str = "chat", take: bool = False, to: str | list[str] = "all", urgent: bool = False,
-                   title: str | None = None, push: bool = True, topic: str | None = None) -> dict[str, Any]:
+                   title: str | None = None, push: bool = True, topic: str | None = None, note: str | None = None) -> dict[str, Any]:
         msg = {"id": uuid.uuid4().hex[:12], "t": time.time(), "from": sender, "name": self._name(sender), "text": str(text or "")[:4000], "kind": kind,
                "image": image, "audio": audio, "take": bool(take), "taken": None, "to": to, "urgent": bool(urgent), "title": title, "topic": topic}
+        if note:
+            msg["note"] = note
         self.msgs.append(msg)
         if len(self.msgs) > MAX_MESSAGES:
             gone, self.msgs = self.msgs[:-MAX_MESSAGES], self.msgs[-MAX_MESSAGES:]
@@ -324,22 +327,46 @@ class Chat:
 
     # ---------- the house answers (Assist) ----------
     async def ask_house(self, user_id: str | None, text: str) -> dict[str, Any]:
+        """The chosen AI answers - and if it can't (its free quota used up, offline), Home Assistant's own Assist does,
+        with a small note why. A failed AI isn't tried again for 30 minutes, so nobody waits for the same error."""
+        agent = self.agent or self.assist_agent()  # the chosen AI, or the one Assist uses
+        if agent and not self.hass.states.get(agent) and agent != BUILTIN_AGENT:
+            agent = None  # removed since: Home Assistant's own
+        note = None
+        if agent and agent != BUILTIN_AGENT:
+            if time.time() < self._ai_down.get(agent, 0):
+                answer = None
+            else:
+                answer = await self._converse(agent, text, user_id)
+                if answer is None:
+                    self._ai_down[agent] = time.time() + AI_RETRY_S
+            if answer is None:
+                st = self.hass.states.get(agent)
+                note = NOTE_FALLBACK.get((self.hass.config.language or "en").split("-")[0], NOTE_FALLBACK["en"]).format(name=st.name if st else agent)
+                answer = await self._converse(None, text, user_id, builtin=True)
+        else:
+            answer = await self._converse(agent, text, user_id, builtin=True)
+        return await self.post(HOUSE, answer or "🤷", kind="assist", push=False, note=note)
+
+    async def _converse(self, agent: str | None, text: str, user_id: str | None, builtin: bool = False) -> str | None:
+        """One question to one agent. None when an AI fails - Home Assistant's own always gives its answer."""
         from homeassistant.components import conversation
 
-        agent = self.agent or self.assist_agent()  # the chosen AI, or the one Assist uses
-        if agent and not self.hass.states.get(agent) and agent != "conversation.home_assistant":
-            agent = None  # removed since: Home Assistant's own
         key = f"{user_id or ''}|{agent or ''}"  # a conversation goes on with the same AI
         try:
             res = await conversation.async_converse(self.hass, text, self.conversations.get(key), Context(user_id=user_id),
                                                     language=self.hass.config.language, agent_id=agent)
-            if res.conversation_id:
-                self.conversations[key] = res.conversation_id
-            answer = ((res.response.speech or {}).get("plain") or {}).get("speech") or "✓"
         except Exception:  # noqa: BLE001
-            _LOGGER.warning("Assist did not answer", exc_info=True)
-            answer = "🤷"
-        return await self.post(HOUSE, answer, kind="assist", push=False)
+            _LOGGER.warning("Assist did not answer (%s)", agent or "Home Assistant", exc_info=True)
+            return None if not builtin else "🤷"
+        if res.conversation_id:
+            self.conversations[key] = res.conversation_id
+        kind = getattr(res.response, "response_type", None)
+        speech = ((res.response.speech or {}).get("plain") or {}).get("speech")
+        if not builtin and getattr(kind, "value", kind) == "error":
+            _LOGGER.info("%s could not answer: %s", agent, speech)
+            return None
+        return speech or "✓"
 
     # ---------- pictures and voice messages ----------
     def save_media(self, data: bytes, ext: str) -> str:

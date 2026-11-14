@@ -85,6 +85,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .me .b{background:linear-gradient(135deg,var(--me1),var(--me2));color:#fff}
 .b.house{background:linear-gradient(135deg,var(--card1),var(--card2));border:1px solid var(--cardline)}
 .b .lbl{display:block;font-size:11px;opacity:.75;margin-bottom:2px}
+.b .note{display:block;font-size:11px;opacity:.6;margin-top:4px}
 .card{border-radius:20px;background:linear-gradient(135deg,var(--card1),var(--card2));border:1px solid var(--cardline);padding:11px 13px;min-width:200px}
 .card .h{font-weight:650;font-size:15px}.card .s{font-size:14px;margin-top:3px;white-space:pre-wrap}
 .card .urgent{display:inline-grid;place-items:center;width:20px;height:20px;font-size:12px;font-weight:800;color:#fff;background:#ff3b5c;border-radius:50%;margin-right:7px;vertical-align:2px}
@@ -228,7 +229,7 @@ class HusChatView extends HTMLElement {
     } else {
       if (m.image) body += `<img class="pic" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="${t.picture}">`;
       if (m.audio) body += `<div class="audio" data-audio="${esc(m.audio)}"><button class="play" data-a="play" data-src="${esc(m.audio)}" aria-label="${t.voice}">▶</button><div class="wave">${this.wave(m.id)}</div><span class="dur">0:00</span></div>`;
-      if (m.text) body += `<div class="b${house ? " house" : ""}">${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}</div>`;
+      if (m.text) body += `<div class="b${house ? " house" : ""}">${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
     }
     const fresh = this._seen && !this._seen.has(m.id);
     return `${who}<div class="row${me ? " me" : ""}${fresh ? " new" : ""}">${me ? "" : this.avatar(m.from, m.name, !lastOfGroup)}<div class="col">${body}${lastOfGroup ? `<div class="time">${this.hm(m.t)}</div>` : ""}</div></div>`;
