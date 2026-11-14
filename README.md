@@ -29,7 +29,7 @@ data:
   camera: camera.front_door   # optional: a picture goes with it
 ```
 
-Or use the notify entity `notify.house_chat_message` with `notify.send_message` – it goes to those at home.
+Or send to the House Chat notify entity with `notify.send_message` – it goes to those at home.
 
 ### Install
 
