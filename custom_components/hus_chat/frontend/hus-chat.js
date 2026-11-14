@@ -1,7 +1,7 @@
 // House Chat (Hus-chat) - loaded by Home Assistant on every page (the chat bubble) and as the sidebar panel.
 // No build step. The bubble can be dragged, and dropped on ✕ to tuck it away as a small tab at the edge of the screen -
 // a tap on the tab brings it back, and so does a new message.
-import { defineSupport } from "./support.js";
+import { defineSupport, defineUpdate } from "./support.js";
 import { defineSuggest } from "./suggest.js";
 
 const T = {
@@ -448,6 +448,11 @@ class HusChatView extends HTMLElement {
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
       el.querySelector("[data-agent]")?.addEventListener("change", (e) => this.setAgent(e.target.value));
       if (this.me?.admin) this.addSuggest(el.firstChild, "card");  // only admins can install
+      if (this.me?.admin) {  // the update card on top of the settings, when it's time
+        this._upd = this._upd || document.createElement(defineUpdate("hus_chat"));
+        this._upd.hass = this.hass;
+        el.firstChild.prepend(this._upd);
+      }
     }
     this.shadowRoot.appendChild(el);
   }
