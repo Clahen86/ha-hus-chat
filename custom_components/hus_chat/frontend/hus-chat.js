@@ -85,7 +85,8 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .b .lbl{display:block;font-size:11px;opacity:.75;margin-bottom:2px}
 .card{border-radius:20px;background:linear-gradient(135deg,var(--card1),var(--card2));border:1px solid var(--cardline);padding:11px 13px;min-width:200px}
 .card .h{font-weight:650;font-size:15px}.card .s{font-size:14px;margin-top:3px;white-space:pre-wrap}
-.card .urgent{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:#ff3b5c;border-radius:99px;padding:2px 8px;margin-bottom:6px}
+.card .urgent{display:inline-grid;place-items:center;width:20px;height:20px;font-size:12px;font-weight:800;color:#fff;background:#ff3b5c;border-radius:50%;margin-right:7px;vertical-align:2px}
+.card.hot{border-color:#ff3b5c;box-shadow:0 0 0 3px rgba(255,59,92,.15);animation:hot 1.6s ease-in-out infinite}@keyframes hot{50%{box-shadow:0 0 0 6px rgba(255,59,92,.05)}}
 .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}.chip{font-size:13.5px;font-weight:650;padding:8px 13px;border-radius:99px;background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .chip.go{background:linear-gradient(135deg,#ff6b8a,#7c5cff);color:#fff}.set .chip{background:var(--bubble);box-shadow:none;padding:6px 11px;font-size:13px}.set .chip.go{background:linear-gradient(135deg,#ff6b8a,#7c5cff);color:#fff}.chip:disabled{cursor:default;opacity:.85}
 .done{font-size:12px;color:var(--ok);margin:4px 0 0 4px}
@@ -217,7 +218,8 @@ class HusChatView extends HTMLElement {
     const who = !me && firstOfGroup ? `<div class="who">${esc(house ? t.house : m.name)}</div>` : "";
     let body = "";
     if (m.kind === "house") {
-      body = `<div class="card">${m.urgent ? `<span class="urgent">!</span>` : ""}${m.title ? `<div class="h">${esc(m.title)}</div>` : ""}<div class="${m.title ? "s" : "h"}">${esc(m.text)}</div>
+      const bang = m.urgent ? `<span class="urgent">!</span>` : "";
+      body = `<div class="card${m.urgent && !m.taken ? " hot" : ""}">${m.title ? `<div class="h">${bang}${esc(m.title)}</div>` : ""}${m.text ? `<div class="${m.title ? "s" : "h"}">${m.title ? "" : bang}${esc(m.text)}</div>` : ""}
         ${m.image ? `<img class="pic" style="margin-top:8px" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="">` : ""}
         ${m.take && !m.taken ? `<div class="chips"><button class="chip go" data-a="take" data-id="${esc(m.id)}">${t.take}</button></div>` : ""}</div>
         ${m.taken ? `<div class="done">${t.took.replace("{name}", m.taken.by === this.me?.id ? t.you : esc(m.taken.name || "?"))}</div>` : ""}`;
