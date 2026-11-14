@@ -459,7 +459,8 @@ class HusChatPanel extends HTMLElement {
   set hass(h) {
     this._hass = h;
     if (!this.view) {
-      this.style.cssText = "display:flex;flex-direction:column;height:100%;";
+      // The whole screen: Home Assistant doesn't give a panel a fixed height, and without one the settings had no room.
+      this.style.cssText = "display:flex;flex-direction:column;height:100vh;height:100dvh;";
       const bar = document.createElement("div");
       bar.style.cssText = "height:var(--header-height,56px);display:flex;align-items:center;background:var(--app-header-background-color,var(--primary-color));color:var(--app-header-text-color,#fff);flex:none";
       bar.innerHTML = `<ha-menu-button></ha-menu-button><div style="font-size:20px;margin-left:4px">${tr(h).family}</div>`;
