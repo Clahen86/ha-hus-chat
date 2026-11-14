@@ -36,10 +36,14 @@ ALWAYS = {"safety"}  # nobody can turn these off for themselves
 WORDS = {
     "da": {"done": "{icon} {name} er færdig", "emptied": "Tømt", "smoke": "Røgalarm", "gas": "Gasalarm", "carbon_monoxide": "CO-alarm",
            "moisture": "Vand", "in": "i {area}", "door": "🔔 Det ringer på døren", "alarm_triggered": "🚨 Alarmen går!",
-           "armed": "🔒 Alarmen er slået til", "disarmed": "🔓 Alarmen er slået fra", "stopped": "✓ {name} er stoppet"},
+           "armed": "🔒 Alarmen er slået til", "disarmed": "🔓 Alarmen er slået fra", "stopped": "✓ {name} er stoppet",
+           "aw_stopped": "Har ikke kørt i timevis – tjek den, før maden tør op.", "aw_nonstop": "Kører uden pause – står døren åben?",
+           "aw_lost": "Ingen måling – har den mistet strømmen?", "aw_tank": "Stoppet – tanken er nok fuld.", "aw_ok": "Virker igen"},
     "en": {"done": "{icon} {name} is done", "emptied": "Emptied", "smoke": "Smoke alarm", "gas": "Gas alarm", "carbon_monoxide": "CO alarm",
            "moisture": "Water", "in": "in {area}", "door": "🔔 Someone is at the door", "alarm_triggered": "🚨 The alarm is going off!",
-           "armed": "🔒 The alarm is armed", "disarmed": "🔓 The alarm is disarmed", "stopped": "✓ {name} has stopped"},
+           "armed": "🔒 The alarm is armed", "disarmed": "🔓 The alarm is disarmed", "stopped": "✓ {name} has stopped",
+           "aw_stopped": "Hasn't run for hours – check it before the food thaws.", "aw_nonstop": "Runs without a break – is the door open?",
+           "aw_lost": "No reading – has it lost power?", "aw_tank": "Stopped – the tank is probably full.", "aw_ok": "Works again"},
 }
 MACHINE_ICON = {"dishwasher": "🍽️", "washing_machine": "🧺", "washer": "🧺", "dryer": "🌀"}
 
@@ -61,6 +65,7 @@ class Watch:
     def start(self) -> None:
         self._unsubs.append(self.hass.bus.async_listen("appliance_watch_finished", self._machine_done))
         self._unsubs.append(self.hass.bus.async_listen("appliance_watch_emptied", self._machine_emptied))
+        self._unsubs.append(self.hass.bus.async_listen("appliance_watch_alert", self._machine_alert))
         self._unsubs.append(self.hass.bus.async_listen("state_changed", self._state))
 
     def stop(self) -> None:
@@ -93,6 +98,20 @@ class Watch:
         msg_id = self._machine_msg.pop(str(event.data.get("entry_id") or ""), None)
         if msg_id:
             await self.chat.take(msg_id, HOUSE, name=self.w["emptied"])
+
+    async def _machine_alert(self, event: Event) -> None:
+        """A freezer or a dehumidifier in trouble (Appliance Watch); a freezer that stopped is urgent - the food thaws."""
+        d, w = event.data, self.w
+        key = f"aw:{d.get('entry_id')}"
+        if d.get("ok"):
+            if msg_id := self._machine_msg.pop(key, None):
+                await self.chat.take(msg_id, HOUSE, name=w["aw_ok"])
+            return
+        reason = str(d.get("reason") or "")
+        urgent = d.get("kind") == "freezer" and reason in ("stopped", "nonstop", "lost")
+        m = await self._post("machines", f"⚠️ {d.get('name') or '?'}", w.get(f"aw_{reason}", ""), take=True, urgent=urgent)
+        if m:
+            self._machine_msg[key] = m["id"]
 
     # ---------- safety, doorbell, alarm ----------
     @callback

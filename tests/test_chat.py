@@ -214,3 +214,14 @@ async def test_who_gets_what_and_muting(hass: HomeAssistant, chat) -> None:
     hass.bus.async_fire("appliance_watch_finished", {"entry_id": "e3", "name": "Tørretumbler", "kind": "dryer"})
     await hass.async_block_till_done()
     assert len(c.msgs) == n  # turned off for the family
+
+
+async def test_a_freezer_that_stopped_rings_everyone_and_clears(hass: HomeAssistant, chat) -> None:
+    c, calls = chat
+    hass.bus.async_fire("appliance_watch_alert", {"entry_id": "f1", "name": "Fryser", "kind": "freezer", "reason": "stopped", "ok": False})
+    await hass.async_block_till_done()
+    m = c.msgs[-1]
+    assert m["urgent"] and "Fryser" in m["title"] and calls["Lilly"][-1].data["data"]["channel"] == "alarm_stream"  # to those at home (the machines rule)
+    hass.bus.async_fire("appliance_watch_alert", {"entry_id": "f1", "name": "Fryser", "kind": "freezer", "reason": "stopped", "ok": True})
+    await hass.async_block_till_done()
+    assert m["taken"]["by"] == HOUSE
