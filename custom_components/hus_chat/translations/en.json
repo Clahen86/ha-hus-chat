@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "House Chat",
+        "description": "The family's chat in Home Assistant – and the house writes along. Nothing to set up: everyone with a person and the companion app is in it."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "House Chat is already set up."
+    }
+  },
+  "entity": {
+    "notify": {
+      "chat": {
+        "name": "Message"
+      }
+    }
+  },
+  "services": {
+    "send": {
+      "name": "Send a message from the house",
+      "description": "Writes in the family chat and on the phones – to those at home unless you choose otherwise.",
+      "fields": {
+        "message": {
+          "name": "Message",
+          "description": "What the house says."
+        },
+        "title": {
+          "name": "Title",
+          "description": "Shown in bold on the phone (optional)."
+        },
+        "to": {
+          "name": "To",
+          "description": "home: those at home (everyone if nobody is) · all: everyone · or persons."
+        },
+        "take": {
+          "name": "\"I'll take it\" button",
+          "description": "Gone from the others' phones when someone takes it; goes to everyone if nobody does within 10 minutes."
+        },
+        "urgent": {
+          "name": "Urgent",
+          "description": "Comes through in quiet hours too (smoke, water, alarm)."
+        },
+        "camera": {
+          "name": "Picture from a camera",
+          "description": "A snapshot goes with the message."
+        }
+      }
+    }
+  }
+}

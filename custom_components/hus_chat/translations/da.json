@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Hus-chat",
+        "description": "Familiens chat i Home Assistant – og huset skriver med. Intet at sætte op: alle med en person og companion-appen er med."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Hus-chat er allerede sat op."
+    }
+  },
+  "entity": {
+    "notify": {
+      "chat": {
+        "name": "Besked"
+      }
+    }
+  },
+  "services": {
+    "send": {
+      "name": "Send en besked fra huset",
+      "description": "Skriver i familiens chat og på telefonerne – til dem, der er hjemme, medmindre du vælger andet.",
+      "fields": {
+        "message": {
+          "name": "Besked",
+          "description": "Det huset siger."
+        },
+        "title": {
+          "name": "Titel",
+          "description": "Vises med fed på telefonen (valgfri)."
+        },
+        "to": {
+          "name": "Til",
+          "description": "home: dem der er hjemme (alle, hvis ingen er) · all: alle · eller personer."
+        },
+        "take": {
+          "name": "\"Jeg tager den\"-knap",
+          "description": "Forsvinder hos de andre, når én tager den; går til alle, hvis ingen gør det inden 10 minutter."
+        },
+        "urgent": {
+          "name": "Haster",
+          "description": "Kommer også igennem i stille timer (røg, vand, alarm)."
+        },
+        "camera": {
+          "name": "Billede fra et kamera",
+          "description": "Et billede følger med beskeden."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+send:
+  fields:
+    message:
+      required: true
+      selector:
+        text:
+          multiline: true
+    title:
+      selector:
+        text:
+    to:
+      default: home
+      selector:
+        select:
+          options:
+            - home
+            - all
+          custom_value: true
+    take:
+      default: false
+      selector:
+        boolean:
+    urgent:
+      default: false
+      selector:
+        boolean:
+    camera:
+      selector:
+        entity:
+          domain: camera
