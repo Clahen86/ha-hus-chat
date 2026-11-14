@@ -360,7 +360,7 @@ class HusChatView extends HTMLElement {
       this._sup = this._sup || document.createElement(defineSupport("hus_chat"));
       this._sup.hass = this.hass;
       el.firstChild.appendChild(this._sup);
-      el.firstChild.appendChild(this.suggest("list"));
+      this.addSuggest(el.firstChild, "list");
     } else {
       const sw = (k) => `<button class="sw ${p[k] ? "on" : ""}" data-a="pref" data-k="${k}" role="switch" aria-checked="${!!p[k]}"></button>`;
       el.innerHTML = `<div class="sbody">
@@ -374,9 +374,16 @@ class HusChatView extends HTMLElement {
             <button class="sw ${x.on ? "on" : ""}" data-a="phone" data-svc="${esc(x.svc)}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}"></button></div>`).join("")}</div>` : ""}
         ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
-      if (this.me?.admin) el.firstChild.appendChild(this.suggest("card"));  // only admins can install
+      if (this.me?.admin) this.addSuggest(el.firstChild, "card");  // only admins can install
     }
     this.shadowRoot.appendChild(el);
+  }
+  addSuggest(box, mode) {  // the suggestions can never stop the settings from showing
+    try { box.appendChild(this.suggest(mode)); }
+    catch (e) {
+      console.error("Hus-chat: suggestions", e);
+      box.insertAdjacentHTML("beforeend", `<small style="display:block;opacity:.5;font-size:11px;margin:10px 4px">suggest: ${esc(e?.message || e)}</small>`);
+    }
   }
   suggest(mode) {  // "Fits your home too" / "From the same developer" - kept between draws
     const k = `_sg_${mode}`;
