@@ -44,9 +44,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket.async_setup(hass)
     hass.http.register_view(UploadView(hass))
     hass.http.register_view(MediaView(hass))
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(STATIC, str(Path(__file__).parent / "frontend"), cache_headers=False)]
-    )
+    # Files under a new address for every change (newest file time), so a browser never mixes old and new files.
+    folder = Path(__file__).parent / "frontend"
+    stamp = await hass.async_add_executor_job(lambda: int(max(p.stat().st_mtime for p in folder.glob("*.js"))))
+    hass.data[f"{DOMAIN}_static"] = base = f"{STATIC}/{stamp}"
+    await hass.http.async_register_static_paths([StaticPathConfig(base, str(folder), cache_headers=False)])
     return True
 
 
@@ -82,7 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
     version = (await async_get_integration(hass, DOMAIN)).version
     js = Path(__file__).parent / "frontend" / "hus-chat.js"
     version = f"{version}-{int(await hass.async_add_executor_job(lambda: js.stat().st_mtime))}"
-    url = f"{STATIC}/hus-chat.js?v={version}"
+    url = f"{hass.data[f'{DOMAIN}_static']}/hus-chat.js?v={version}"
     frontend.add_extra_js_url(hass, url)  # the chat bubble on every page
     entry.async_on_unload(lambda: frontend.remove_extra_js_url(hass, url))
     await panel_custom.async_register_panel(
