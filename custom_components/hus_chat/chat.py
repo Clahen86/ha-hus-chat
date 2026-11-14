@@ -21,7 +21,7 @@ from typing import Any
 import uuid
 
 from homeassistant.core import Context, Event, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
@@ -47,6 +47,7 @@ class Chat:
         self.conversations: dict[str, str] = {}  # user id -> Assist conversation id
         self.media_dir = Path(hass.config.path("hus_chat"))
         self._timers: dict[str, Any] = {}
+        self.users: dict[str, str] = {}
 
     # ---------- storage ----------
     async def async_load(self) -> None:
@@ -54,6 +55,7 @@ class Chat:
         self.msgs = d.get("msgs", [])
         self.read = d.get("read", {})
         self.prefs = d.get("prefs", {})
+        await self.async_refresh_users()
         await self.hass.async_add_executor_job(lambda: self.media_dir.mkdir(exist_ok=True))
 
     def _save(self) -> None:
@@ -65,23 +67,39 @@ class Chat:
         self._timers.clear()
 
     # ---------- the family ----------
+    async def async_refresh_users(self) -> None:
+        """The names of those who can sign in - for anyone with the app but no person in Home Assistant."""
+        self.users = {u.id: u.name or "?" for u in await self.hass.auth.async_get_users() if not u.system_generated and u.is_active}
+
     def people(self) -> list[dict[str, Any]]:
-        out = []
-        ents, devs = er.async_get(self.hass), dr.async_get(self.hass)
+        """Everyone with a person, and everyone with the Home Assistant app on a phone - a person isn't needed.
+
+        At home: the person's state when there is one (it puts several devices together), otherwise the phone's own.
+        """
+        out: dict[str, dict[str, Any]] = {}
         for st in self.hass.states.async_all("person"):
-            phones = []
-            for tracker in st.attributes.get("device_trackers") or []:
-                e = ents.async_get(tracker)
-                if not e or e.platform != "mobile_app" or not e.device_id:
+            out[st.entity_id] = {"id": st.entity_id, "name": st.attributes.get("friendly_name") or st.entity_id.split(".")[1],
+                                 "user_id": st.attributes.get("user_id"), "picture": st.attributes.get("entity_picture"),
+                                 "home": st.state == "home", "phones": [], "_trackers": set(st.attributes.get("device_trackers") or [])}
+        by_user = {p["user_id"]: p for p in out.values() if p["user_id"]}
+        ents = er.async_get(self.hass)
+        for entry in self.hass.config_entries.async_entries("mobile_app"):
+            name, uid = entry.data.get("device_name"), entry.data.get("user_id")
+            svc = f"mobile_app_{slugify(name or '')}"
+            if not name or not self.hass.services.has_service("notify", svc):
+                continue  # no push on this device (e.g. a tablet without notifications)
+            tracker = next((e.entity_id for e in er.async_entries_for_config_entry(ents, entry.entry_id) if e.domain == "device_tracker"), None)
+            p = by_user.get(uid) or next((x for x in out.values() if tracker and tracker in x["_trackers"]), None)
+            if p is None:
+                if uid not in self.users:
                     continue
-                d = devs.async_get(e.device_id)
-                svc = f"mobile_app_{slugify(d.name_by_user or d.name or '')}" if d else None
-                if svc and self.hass.services.has_service("notify", svc):
-                    phones.append(svc)
-            out.append({"id": st.entity_id, "name": st.attributes.get("friendly_name") or st.entity_id.split(".")[1],
-                        "user_id": st.attributes.get("user_id"), "picture": st.attributes.get("entity_picture"),
-                        "home": st.state == "home", "phones": phones})
-        return sorted(out, key=lambda p: p["name"].lower())
+                st = self.hass.states.get(tracker) if tracker else None
+                p = out[f"user.{uid}"] = {"id": f"user.{uid}", "name": self.users[uid], "user_id": uid, "picture": None,
+                                          "home": bool(st and st.state == "home"), "phones": [], "_trackers": set()}
+                by_user[uid] = p
+            if svc not in p["phones"]:
+                p["phones"].append(svc)
+        return sorted(({k: v for k, v in p.items() if k != "_trackers"} for p in out.values()), key=lambda p: p["name"].lower())
 
     def person_of(self, user_id: str | None) -> dict[str, Any] | None:
         return next((p for p in self.people() if user_id and p["user_id"] == user_id), None)
@@ -178,6 +196,8 @@ class Chat:
         if sender.startswith("person."):
             st = self.hass.states.get(sender)
             return (st and st.attributes.get("friendly_name")) or sender.split(".")[1]
+        if sender.startswith("user."):
+            return self.users.get(sender[5:], "?")
         return sender.split(":")[2] or "?" if sender.count(":") >= 2 else "?"
 
     def _push_data(self, msg: dict[str, Any], extra: str = "") -> dict[str, Any]:

@@ -37,6 +37,7 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
         connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
         return
     uid = connection.user.id
+    await chat.async_refresh_users()
 
     @callback
     def forward(kind: str, m: dict[str, Any]) -> None:

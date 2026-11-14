@@ -12,16 +12,19 @@ from custom_components.hus_chat.const import DOMAIN, HOUSE
 
 
 async def _family(hass: HomeAssistant) -> dict[str, list]:
-    """Two persons with a phone each (companion app): Lilly at home, Wictor away."""
-    phone_entry = MockConfigEntry(domain="mobile_app")
-    phone_entry.add_to_hass(hass)
+    """Lilly (at home) and Wictor (away) have a person; Claus has only the app on his phone, no person."""
     calls = {}
-    for name, user, home in (("Lilly", "u-lilly", True), ("Wictor", "u-wictor", False)):
-        dev = dr.async_get(hass).async_get_or_create(config_entry_id=phone_entry.entry_id, identifiers={("mobile_app", name)}, name=f"{name} phone")
-        tracker = er.async_get(hass).async_get_or_create("device_tracker", "mobile_app", name, device_id=dev.id, suggested_object_id=name.lower())
+    for name, user, home, person in (("Lilly", "u-lilly", True, True), ("Wictor", "u-wictor", False, True), ("Claus", "u-claus", True, False)):
+        phone = MockConfigEntry(domain="mobile_app", data={"user_id": user, "device_name": f"{name} phone"})
+        phone.add_to_hass(hass)
+        dev = dr.async_get(hass).async_get_or_create(config_entry_id=phone.entry_id, identifiers={("mobile_app", name)}, name=f"{name} phone")
+        tracker = er.async_get(hass).async_get_or_create("device_tracker", "mobile_app", name, device_id=dev.id, config_entry=phone,
+                                                          suggested_object_id=name.lower())
+        hass.states.async_set(tracker.entity_id, "home" if home else "not_home")
         calls[name] = async_mock_service(hass, "notify", f"mobile_app_{name.lower()}_phone")
-        hass.states.async_set(f"person.{name.lower()}", "home" if home else "not_home",
-                              {"friendly_name": name, "user_id": user, "device_trackers": [tracker.entity_id]})
+        if person:
+            hass.states.async_set(f"person.{name.lower()}", "home" if home else "not_home",
+                                  {"friendly_name": name, "user_id": user, "device_trackers": [tracker.entity_id]})
     return calls
 
 
@@ -33,6 +36,7 @@ async def chat(hass: HomeAssistant):
     with patch("custom_components.hus_chat.support.Support.async_setup"), patch("custom_components.hus_chat.support.Support.unload"):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+        entry.runtime_data.users = {"u-lilly": "Lilly", "u-wictor": "Wictor", "u-claus": "Claus"}
         yield entry.runtime_data, calls
 
 
@@ -57,7 +61,7 @@ async def test_house_message_to_those_at_home_and_take(hass: HomeAssistant, chat
     c, calls = chat
     await hass.services.async_call(DOMAIN, "send", {"message": "Vaskemaskinen er færdig", "take": True}, blocking=True)
     await hass.async_block_till_done()
-    assert len(calls["Lilly"]) == 1 and not calls["Wictor"]
+    assert len(calls["Lilly"]) == 1 and len(calls["Claus"]) == 1 and not calls["Wictor"]
     m = c.msgs[-1]
     assert m["from"] == HOUSE and m["take"]
     await c.take(m["id"], "person.lilly")
@@ -69,6 +73,7 @@ async def test_house_message_to_those_at_home_and_take(hass: HomeAssistant, chat
 async def test_nobody_home_goes_to_everyone(hass: HomeAssistant, chat) -> None:
     c, calls = chat
     hass.states.async_set("person.lilly", "not_home", {**hass.states.get("person.lilly").attributes})
+    hass.states.async_set("device_tracker.claus", "not_home")
     await c.post(HOUSE, "Døren er åben", kind="house", to="home")
     await hass.async_block_till_done()
     assert len(calls["Lilly"]) == 1 and len(calls["Wictor"]) == 1
@@ -134,3 +139,17 @@ async def test_nobody_took_it_goes_to_everyone_after_10_minutes(hass: HomeAssist
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=11))
     await hass.async_block_till_done()
     assert len(calls["Wictor"]) == 1 and "Ingen har reageret" in calls["Wictor"][0].data["message"] or "Nobody" in calls["Wictor"][0].data["message"]
+
+
+async def test_someone_with_only_the_app_is_in_it(hass: HomeAssistant, chat) -> None:
+    """No person in Home Assistant: found from the app on the phone, at home from the phone's own location."""
+    c, calls = chat
+    claus = next(p for p in c.people() if p["name"] == "Claus")
+    assert claus["id"] == "user.u-claus" and claus["phones"] == ["mobile_app_claus_phone"] and claus["home"]
+    await c.post("person.lilly", "Hej Claus")
+    await hass.async_block_till_done()
+    assert calls["Claus"][0].data["title"] == "Lilly"
+    hass.bus.async_fire("mobile_app_notification_action", {"action": "REPLY", "reply_text": "Hej!", "tag": "huschat-x"},
+                        context=Context(user_id="u-claus"))
+    await hass.async_block_till_done()
+    assert c.msgs[-1]["from"] == "user.u-claus" and c.msgs[-1]["name"] == "Claus"
