@@ -6,15 +6,17 @@
 
 ![House Chat](docs/showcase.png)
 
-<p align="center"><img src="docs/chat_light.png" width="250" alt="The chat"> <img src="docs/chat_dark.png" width="250" alt="Dark theme"> <img src="docs/settings.png" width="250" alt="Who gets what"></p>
+<p align="center"><img src="docs/chat_light.png" width="250" alt="The chat"> <img src="docs/chat_dark.png" width="250" alt="Dark theme"> <img src="docs/settings.png" width="250" alt="Who gets what"> <img src="docs/actions.png" width="250" alt="React, reply, edit, delete"></p>
 
 ## English
 
 - **A chat bubble on every page of Home Assistant**, like Messenger. A red number for new messages, and a little preview when someone writes. Drag it onto ✕ and it tucks away as a small tab at the edge – tap the tab, or it comes back by itself when somebody writes.
 - **Write with each other**: text, pictures and voice messages (use the keyboard's microphone to dictate). Everyone sees who wrote what.
+- **Tap a message** to react (👍 ❤️ 😂 😮 😢 🙏), reply with a quote, edit your own (marked *edited*) or delete it. Under your last message you see who has **seen** it.
+- **Private where it should be**: a message to some of you is only seen by them, and a question to the house with its answer only by whoever asked. An account without a person or the app (a wall tablet) sees no messages. An admin can delete any message, or clear the whole chat under ⚙️.
 - **Ask or control the house**: tap the house in the message field and write "Is the front door locked?" or "Turn off the lights in the living room" – the house answers in the chat.
 - **Or just say it**: with *To the house* on, the microphone works like a voice command – it listens, sends by itself when you stop talking, and the house answers. Nothing is sent if nobody spoke.
-- **When the app is closed** the message comes as a notification you can answer right in, or press *I'll take it*.
+- **When the app is closed** the message comes as a notification you can answer right in, or press *I'll take it*. Read it anywhere and it's gone from your phones too – and with the chat open you get no notification (urgent alarms still come).
 - **Quiet hours** per person – only urgent messages come through.
 - **Nothing to set up**: everyone with the Home Assistant app on their phone is in it – also without a person. Who is home comes from the persons.
 
@@ -74,9 +76,11 @@ Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach
 
 - **En chat-boble på alle sider i Home Assistant**, ligesom Messenger. Et rødt tal for nye beskeder og en lille forsmag, når nogen skriver. Træk den ned på ✕, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.
 - **Skriv sammen**: tekst, billeder og lydbeskeder. Alle kan se, hvem der skriver.
+- **Tryk på en besked** for at reagere (👍 ❤️ 😂 😮 😢 🙏), svare med citat, rette din egen (vises som *redigeret*) eller slette den. Under din seneste besked kan du se, hvem der har **set** den.
+- **Privat, hvor det skal være**: en besked til nogle få ses kun af dem, og et spørgsmål til huset og svaret kun af den, der spurgte. En konto uden person og uden app (fx en vægtablet) ser ingen beskeder. En admin kan slette enhver besked eller rydde hele chatten under ⚙️.
 - **Spørg eller styr huset**: tryk på huset i beskedfeltet og skriv "Er hoveddøren låst?" eller "Sluk lyset i stuen" – huset svarer i chatten.
 - **Eller sig det bare**: med *Til huset* slået til virker mikrofonen som en stemmekommando – den lytter, sender selv, når du holder op med at tale, og huset svarer. Siger du ikke noget, sendes der intet.
-- **Når appen er lukket**, kommer beskeden som en notifikation, du kan svare direkte i eller trykke *Jeg tager den*.
+- **Når appen er lukket**, kommer beskeden som en notifikation, du kan svare direkte i eller trykke *Jeg tager den*. Læser du den et sted, forsvinder den også fra dine telefoner – og har du chatten åben, får du ingen notifikation (akutte alarmer kommer stadig).
 - **Stille timer** pr. person – kun det, der haster, kommer igennem.
 - **Intet at sætte op**: alle med Home Assistant-appen på telefonen er med – også uden en person.
 
