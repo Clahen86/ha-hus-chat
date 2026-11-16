@@ -52,7 +52,6 @@ class Watch:
     def __init__(self, hass: HomeAssistant, chat: Any) -> None:
         self.hass, self.chat = hass, chat
         self._unsubs: list[Any] = []
-        self._machine_msg: dict[str, str] = {}  # Appliance Watch entry -> message
         self._last: dict[str, float] = {}
 
     @property
@@ -90,28 +89,26 @@ class Watch:
     async def _machine_done(self, event: Event) -> None:
         d = event.data
         icon = MACHINE_ICON.get(str(d.get("kind") or ""), "✅")
-        m = await self._post("machines", self.w["done"].format(icon=icon, name=d.get("name") or "?"), "", take=True)
-        if m and d.get("entry_id"):
-            self._machine_msg[d["entry_id"]] = m["id"]
+        await self._post("machines", self.w["done"].format(icon=icon, name=d.get("name") or "?"), "", take=True,
+                         machine=str(d.get("entry_id") or "") or None)
 
     async def _machine_emptied(self, event: Event) -> None:
-        msg_id = self._machine_msg.pop(str(event.data.get("entry_id") or ""), None)
-        if msg_id:
-            await self.chat.take(msg_id, HOUSE, name=self.w["emptied"])
+        # The machine is kept on its message, so this works after a restart too.
+        if m := self.chat.machine_message(str(event.data.get("entry_id") or "")):
+            await self.chat.take(m["id"], HOUSE, name=self.w["emptied"])
 
     async def _machine_alert(self, event: Event) -> None:
         """A freezer or a dehumidifier in trouble (Appliance Watch); a freezer that stopped is urgent - the food thaws."""
         d, w = event.data, self.w
         key = f"aw:{d.get('entry_id')}"
         if d.get("ok"):
-            if msg_id := self._machine_msg.pop(key, None):
-                await self.chat.take(msg_id, HOUSE, name=w["aw_ok"])
+            if m := self.chat.machine_message(key):
+                await self.chat.take(m["id"], HOUSE, name=w["aw_ok"])
             return
         reason = str(d.get("reason") or "")
         urgent = d.get("kind") == "freezer" and reason in ("stopped", "nonstop", "lost")
-        m = await self._post("machines", f"⚠️ {d.get('name') or '?'}", w.get(f"aw_{reason}", ""), take=True, urgent=urgent)
-        if m:
-            self._machine_msg[key] = m["id"]
+        await self._post("machines", f"⚠️ {d.get('name') or '?'}", w.get(f"aw_{reason}", ""), take=True, urgent=urgent,
+                         machine=key)
 
     # ---------- safety, doorbell, alarm ----------
     @callback
@@ -162,6 +159,8 @@ class Watch:
         return None
 
     async def _doorbell(self, entity_id: str) -> None:
+        if not self.rule("doorbell")["on"]:
+            return  # no picture taken for a message that won't be sent
         image = None
         if cam := self._camera_for(entity_id):
             try:

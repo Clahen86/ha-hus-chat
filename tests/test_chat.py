@@ -108,10 +108,11 @@ async def test_websocket(hass: HomeAssistant, chat, hass_ws_client, hass_admin_u
     init = (await client.receive_json())["event"]
     assert init["type"] == "init" and init["prefs"]["bubble"] is True
     await client.send_json_auto_id({"type": "hus_chat/send", "text": "Hej"})
-    ev = await client.receive_json()
-    res = await client.receive_json()
-    got = {ev.get("type"): ev, res.get("type"): res}
-    assert got["event"]["event"]["message"]["text"] == "Hej" and got["result"]["success"]
+    got = {}
+    while "result" not in got or "message" not in got:  # the message, "read" (seen by) and the answer, in any order
+        x = await client.receive_json()
+        got[x["event"]["type"] if x.get("type") == "event" else x["type"]] = x
+    assert got["message"]["event"]["message"]["text"] == "Hej" and got["result"]["success"]
     await client.send_json_auto_id({"type": "hus_chat/prefs", "quiet": True})
     r = await client.receive_json()
     assert r["result"]["quiet"] is True
@@ -321,3 +322,42 @@ async def test_setup_for_the_developer(hass: HomeAssistant, chat) -> None:
     assert info["features"]["msg_machines"] is True and info["features"]["msg_alarm"] is False
     text = str(info)
     assert "Lilly" not in text and "Wictor" not in text and "Claus" not in text
+
+
+async def test_privacy_and_unread(hass: HomeAssistant, chat) -> None:
+    c, _ = chat
+    await c.post(HOUSE, "Kun til Lilly", kind="house", to=["person.lilly"])
+    await c.post(HOUSE, "Til alle", kind="house", to="all")
+    await c.post("person.wictor", "Hej")
+    seen_w = [m["text"] for m in c.visible("u-wictor")]
+    assert "Kun til Lilly" not in seen_w and "Til alle" in seen_w
+    assert "Kun til Lilly" in [m["text"] for m in c.visible("u-lilly")]
+    assert c.unread("u-wictor") == 1  # "Til alle" - not his own, not Lilly's
+    assert c.visible("u-kiosk") == []  # no person, no phone: not in the family chat
+    assert c.visible("u-kiosk", admin=True)  # an admin is
+
+
+async def test_delete_edit_react_and_dedupe(hass: HomeAssistant, chat) -> None:
+    c, _ = chat
+    m = await c.post("person.lilly", "Hej", cid="abc")
+    assert await c.post("person.lilly", "Hej", cid="abc") is m  # sent again after a lost connection
+    assert c.edit(m["id"], "u-lilly", "Hej igen") and m["text"] == "Hej igen" and m["edited"]
+    assert not c.edit(m["id"], "u-wictor", "nej")  # not his
+    assert c.react(m["id"], "u-wictor", "👍") and m["reactions"] == {"👍": ["person.wictor"]}
+    c.react(m["id"], "u-wictor", "👍")
+    assert m["reactions"] == {}
+    r = await c.post("person.wictor", "Svar", reply=m["id"])
+    assert r["reply"]["text"] == "Hej igen"
+    assert not await c.delete(m["id"], "u-wictor", admin=False)
+    assert await c.delete(m["id"], "u-lilly", admin=False) and c.find(m["id"]) is None
+
+
+async def test_machine_message_after_restart(hass: HomeAssistant, chat) -> None:
+    c, _ = chat
+    m = await c.post(HOUSE, "Opvasker færdig", kind="house", take=True, to="home", machine="entry1")
+    assert c.machine_message("entry1") is m and m.get("sent") is not None
+    c.stop()
+    c._rearm()  # as after a restart
+    assert m["id"] in c._timers
+    await c.take(m["id"], HOUSE)
+    assert c.machine_message("entry1") is None

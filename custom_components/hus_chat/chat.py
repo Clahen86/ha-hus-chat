@@ -24,7 +24,7 @@ import uuid
 from homeassistant.core import Context, Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util, slugify
 
@@ -54,6 +54,7 @@ class Chat:
         self._ai_down: dict[str, float] = {}  # an AI that failed (used up, offline) -> not tried again before this time
         self.seen: dict[str, float] = {}  # phone -> last time its location was there (not unavailable)
         self.phones_of: dict[str, list[dict[str, Any]]] = {}  # user id -> their phones, for "My phones"
+        self.active: dict[str, float] = {}  # user id -> last time the chat was open and in front (no push then)
 
     # ---------- storage ----------
     async def async_load(self) -> None:
@@ -66,6 +67,31 @@ class Chat:
         self.agent = d.get("agent")
         await self.async_refresh_users()
         await self.hass.async_add_executor_job(lambda: self.media_dir.mkdir(exist_ok=True))
+        self._rearm()
+        # Pictures nobody sent (an upload that was cancelled) go once a day.
+        from datetime import timedelta
+
+        await self._tidy_media()
+        self._timers["_tidy"] = async_track_time_interval(self.hass, self._tidy_media, timedelta(hours=24))
+
+    async def _tidy_media(self, _now: Any = None) -> None:
+        used = {n for m in self.msgs for n in (m.get("image"), m.get("audio")) if n}
+
+        def tidy() -> None:
+            cut = time.time() - 86400
+            for f in self.media_dir.glob("*"):
+                if MEDIA_NAME.match(f.name) and f.name not in used and f.stat().st_mtime < cut:
+                    f.unlink(missing_ok=True)
+
+        await self.hass.async_add_executor_job(tidy)
+
+    def _rearm(self) -> None:
+        """After a restart: house messages nobody took yet still go to everyone after 10 minutes."""
+        now = time.time()
+        for m in self.msgs:
+            if m["kind"] == "house" and m.get("take") and m.get("to") == "home" and not m.get("taken") \
+                    and not m.get("escalated") and now - m["t"] < 6 * ESCALATE_S:
+                self._arm(m, set(m.get("sent") or []), max(5.0, ESCALATE_S - (now - m["t"])))
 
     def _save(self) -> None:
         self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules, "agent": self.agent}, 2)
@@ -129,14 +155,57 @@ class Chat:
         p = self.person_of(user_id)
         return p["id"] if p else f"user:{user_id or 'unknown'}:{user_name or ''}"
 
+    # ---------- who sees what ----------
+    def is_mine(self, m: dict[str, Any], user_id: str, me: str | None = None) -> bool:
+        """Written by this user - also before a person was linked to them (then it was "user:<id>:<name>")."""
+        f = m.get("from") or ""
+        return f == (me or self.sender_of(user_id)) or f == f"user.{user_id}" or f.startswith(f"user:{user_id}:")
+
+    def member(self, user_id: str, admin: bool = False) -> bool:
+        """In the family: a person, or the Home Assistant app on a phone - or an admin. A wall tablet's or a guest's
+        account is not, and sees no messages."""
+        return admin or any(p["user_id"] == user_id for p in self.people())
+
+    def can_see(self, m: dict[str, Any], user_id: str, me: str | None = None) -> bool:
+        """A message to some of you is seen by them and its writer only; one to all (or those at home) by everyone.
+        A question to the house and its answer are the asker's own."""
+        me = me or self.sender_of(user_id)
+        if self.is_mine(m, user_id, me):
+            return True
+        to = m.get("to") or "all"
+        return me in to if isinstance(to, list) else True
+
+    def visible(self, user_id: str, admin: bool = False) -> list[dict[str, Any]]:
+        if not self.member(user_id, admin):
+            return []
+        me = self.sender_of(user_id)
+        return [m for m in self.msgs if self.can_see(m, user_id, me)]
+
+    def reads(self) -> dict[str, float]:
+        """Who has read up to when (for "seen by"): person or user id -> time."""
+        out = {}
+        for uid, t in self.read.items():
+            out[self.sender_of(uid)] = t
+        return out
+
     # ---------- messages ----------
     async def post(self, sender: str, text: str = "", *, image: str | None = None, audio: str | None = None,
                    kind: str = "chat", take: bool = False, to: str | list[str] = "all", urgent: bool = False,
-                   title: str | None = None, push: bool = True, topic: str | None = None, note: str | None = None) -> dict[str, Any]:
+                   title: str | None = None, push: bool = True, topic: str | None = None, note: str | None = None,
+                   cid: str | None = None, reply: str | None = None, machine: str | None = None) -> dict[str, Any]:
+        if cid and (same := next((m for m in reversed(self.msgs[-200:]) if m.get("cid") == cid and m["from"] == sender), None)):
+            return same  # sent again after a lost connection: it was already here
         msg = {"id": uuid.uuid4().hex[:12], "t": time.time(), "from": sender, "name": self._name(sender), "text": str(text or "")[:4000], "kind": kind,
                "image": image, "audio": audio, "take": bool(take), "taken": None, "to": to, "urgent": bool(urgent), "title": title, "topic": topic}
         if note:
             msg["note"] = note
+        if cid:
+            msg["cid"] = cid[:40]
+        if machine:
+            msg["machine"] = machine  # kept with the message, so "emptied" finds it also after a restart
+        if reply and (r := self.find(reply)):
+            msg["reply"] = {"id": r["id"], "name": r.get("name") or "", "text": (r.get("text") or r.get("title") or
+                            (_t(self.hass)["image"] if r.get("image") else _t(self.hass)["audio"] if r.get("audio") else ""))[:140]}
         self.msgs.append(msg)
         if len(self.msgs) > MAX_MESSAGES:
             gone, self.msgs = self.msgs[:-MAX_MESSAGES], self.msgs[-MAX_MESSAGES:]
@@ -165,20 +234,86 @@ class Chat:
             cancel()
         self._save()
         async_dispatcher_send(self.hass, SIGNAL, "update", m)
-        for p in self.people():  # gone from everyone's phone
-            for svc in p["phones"]:
-                await self._notify(svc, {"message": "clear_notification", "data": {"tag": f"huschat-{msg_id}"}})
+        await self._clear_phones(msg_id)  # gone from everyone's phone
         return m
 
+    def machine_message(self, key: str) -> dict[str, Any] | None:
+        return next((m for m in reversed(self.msgs) if m.get("machine") == key and not m.get("taken")), None)
+
+    async def delete(self, msg_id: str, user_id: str, admin: bool) -> bool:
+        """Your own message - or any, for an admin. Its picture or voice message goes too."""
+        m = self.find(msg_id)
+        if not m or not (admin or self.is_mine(m, user_id)):
+            return False
+        self.msgs.remove(m)
+        await self.hass.async_add_executor_job(self._remove_media, [m])
+        if cancel := self._timers.pop(msg_id, None):
+            cancel()
+        self._save()
+        async_dispatcher_send(self.hass, SIGNAL, "delete", {"id": msg_id})
+        await self._clear_phones(msg_id)
+        return True
+
+    async def clear_all(self) -> None:
+        """An admin empties the chat: every message, picture and voice message."""
+        gone, self.msgs = self.msgs, []
+        await self.hass.async_add_executor_job(self._remove_media, gone)
+        for key in [k for k in self._timers if k != "_tidy"]:
+            self._timers.pop(key)()
+        self._save()
+        async_dispatcher_send(self.hass, SIGNAL, "clear", {})
+
+    def edit(self, msg_id: str, user_id: str, text: str) -> bool:
+        m = self.find(msg_id)
+        if not m or m["kind"] not in ("chat",) or not self.is_mine(m, user_id) or not text.strip():
+            return False
+        m["text"], m["edited"] = text.strip()[:4000], time.time()
+        self._save()
+        async_dispatcher_send(self.hass, SIGNAL, "update", m)
+        return True
+
+    def react(self, msg_id: str, user_id: str, emoji: str) -> bool:
+        m = self.find(msg_id)
+        if not m or not self.can_see(m, user_id):
+            return False
+        me = self.sender_of(user_id)
+        who = (m.setdefault("reactions", {})).setdefault(emoji, [])
+        who.remove(me) if me in who else who.append(me)
+        m["reactions"] = {k: v for k, v in m["reactions"].items() if v}
+        self._save()
+        async_dispatcher_send(self.hass, SIGNAL, "update", m)
+        return True
+
     def mark_read(self, user_id: str, t: float) -> None:
-        if t > self.read.get(user_id, 0):
+        old = self.read.get(user_id, 0)
+        if t > old:
             self.read[user_id] = t
             self._save()
+            async_dispatcher_send(self.hass, SIGNAL, "read", {"who": self.sender_of(user_id), "t": t})
+            # Read here: gone from this person's phones too.
+            me = self.sender_of(user_id)
+            ids = [m["id"] for m in self.msgs if old < m["t"] <= t and not self.is_mine(m, user_id, me)][-30:]
+            if ids:
+                self.hass.async_create_task(self._clear_phones(*ids, user_id=user_id))
 
-    def unread(self, user_id: str) -> int:
-        me = self.sender_of(user_id)
-        last = self.read.get(user_id, 0)
-        return sum(1 for m in self.msgs if m["t"] > last and m["from"] != me)
+    async def _clear_phones(self, *msg_ids: str, user_id: str | None = None) -> None:
+        for p in self.people():
+            if user_id is not None and p["user_id"] != user_id:
+                continue
+            for svc in p["phones"]:
+                for msg_id in msg_ids:
+                    await self._notify(svc, {"message": "clear_notification", "data": {"tag": f"huschat-{msg_id}"}})
+
+    def unread(self, user_id: str, admin: bool = False) -> int:
+        """Messages to you that you haven't read - not your own, not those meant for others."""
+        me, last = self.sender_of(user_id), self.read.get(user_id, 0)
+        return sum(1 for m in self.visible(user_id, admin) if m["t"] > last and not self.is_mine(m, user_id, me))
+
+    def set_active(self, user_id: str, on: bool) -> None:
+        if on:
+            self.active[user_id] = time.time()
+        else:
+            self.active.pop(user_id, None)
 
     def set_prefs(self, user_id: str, prefs: dict[str, Any]) -> dict[str, Any]:
         cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], "muted": [], **self.prefs.get(user_id, {})}
@@ -254,6 +389,8 @@ class Chat:
                 return True  # smoke, water, CO: always, also in quiet hours and with messages off
             if msg.get("topic") and msg["topic"] in (pr.get("muted") or []):
                 return False
+            if not msg.get("urgent") and time.time() - self.active.get(p["user_id"] or "", 0) < 90:
+                return False  # has the chat open right now: sees it there
             return (msg.get("urgent") or not self._quiet(p["user_id"])) and pr.get("push", True) is not False
 
         return [p for p in people if wants(p)]
@@ -299,13 +436,20 @@ class Chat:
                 await self._notify(svc, self._push_data(msg))
             sent.add(p["id"])
         if msg["kind"] == "house" and msg.get("take") and msg.get("to") == "home":
-            @callback
-            def _escalate(_now: Any) -> None:
-                self._timers.pop(msg["id"], None)
-                if not msg.get("taken"):
-                    self.hass.async_create_task(self._escalate(msg, sent))
+            msg["sent"] = sorted(sent)  # kept, so a restart can still send it to the others (_rearm)
+            self._save()
+            self._arm(msg, sent, ESCALATE_S)
 
-            self._timers[msg["id"]] = async_call_later(self.hass, ESCALATE_S, _escalate)
+    def _arm(self, msg: dict[str, Any], sent: set[str], delay: float) -> None:
+        @callback
+        def _escalate(_now: Any) -> None:
+            self._timers.pop(msg["id"], None)
+            if not msg.get("taken") and msg in self.msgs:
+                msg["escalated"] = True
+                self._save()
+                self.hass.async_create_task(self._escalate(msg, sent))
+
+        self._timers[msg["id"]] = async_call_later(self.hass, delay, _escalate)
 
     async def _escalate(self, msg: dict[str, Any], sent: set[str]) -> None:
         for p in self._recipients(msg, everyone=True):
@@ -346,7 +490,7 @@ class Chat:
                 st = self.hass.states.get(agent)
                 note = NOTE_FALLBACK.get((self.hass.config.language or "en").split("-")[0], NOTE_FALLBACK["en"]).format(name=st.name if st else agent)
                 answer = await self._converse(None, text, user_id, builtin=True)
-        return await self.post(HOUSE, answer or "🤷", kind="assist", push=False, note=note)
+        return await self.post(HOUSE, answer or "🤷", kind="assist", push=False, note=note, to=[self.sender_of(user_id)])
 
     async def _converse(self, agent: str | None, text: str, user_id: str | None, builtin: bool = False,
                         timeout: float | None = None) -> str | None:

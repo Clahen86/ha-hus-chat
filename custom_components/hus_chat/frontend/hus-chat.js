@@ -16,7 +16,9 @@ const T = {
     topicsH: { machines: "Maskiner færdige, og fryser eller affugter med problemer (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra" },
     toHome: "Hjemme", toAll: "Alle", forMe: "Til mig", always: "Altid", on: "Slået til",
     myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
-    picture: "Billede", voice: "Lydbesked", listen: "Lytter … sig det til huset", noStt: "Tale er ikke sat op i Assist – skriv i stedet.", heard: "Hørte ikke noget – prøv igen.", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset" },
+    picture: "Billede", voice: "Lydbesked", listen: "Lytter … sig det til huset", noStt: "Tale er ikke sat op i Assist – skriv i stedet.", heard: "Hørte ikke noget – prøv igen.", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset",
+    reply: "Svar", edit: "Rediger", del: "Slet", delAsk: "Slette beskeden for alle?", edited: "redigeret", seen: "Set af {names}", replyTo: "Svarer {name}", editing: "Retter beskeden",
+    clear: "Ryd hele chatten", clearH: "Sletter alle beskeder, billeder og lydbeskeder for alle. Kan ikke fortrydes.", clearAsk: "Slette hele chatten for alle?", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
     took: "✓ {name} took it", you: "you", settings: "Settings", agentT: "🤖 Who answers for the house", agentH: "The AI that answers when you write or speak to the house. Add more under Settings → Devices & services (e.g. Google AI, OpenAI, Ollama).", asAssist: "As in Assist", builtin: "Home Assistant", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
@@ -28,7 +30,9 @@ const T = {
     topicsH: { machines: "Machines done, and a freezer or dehumidifier in trouble (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed" },
     toHome: "At home", toAll: "Everyone", forMe: "For me", always: "Always", on: "On",
     myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
-    picture: "Picture", voice: "Voice message", listen: "Listening … tell the house", noStt: "Speech isn't set up in Assist – type instead.", heard: "Didn't catch that – try again.", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house" },
+    picture: "Picture", voice: "Voice message", listen: "Listening … tell the house", noStt: "Speech isn't set up in Assist – type instead.", heard: "Didn't catch that – try again.", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house",
+    reply: "Reply", edit: "Edit", del: "Delete", delAsk: "Delete the message for everyone?", edited: "edited", seen: "Seen by {names}", replyTo: "Replying to {name}", editing: "Editing the message",
+    clear: "Clear the whole chat", clearH: "Deletes every message, picture and voice message for everyone. Can't be undone.", clearAsk: "Delete the whole chat for everyone?", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
 };
 const COLORS = ["#ff8a65", "#4db6ac", "#9575cd", "#4fc3f7", "#f06292", "#aed581", "#ffb74d", "#7986cb"];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -127,6 +131,17 @@ textarea::placeholder{color:var(--muted)}
 .times{display:flex;gap:10px;margin-top:12px}.times label{flex:1;font-size:12.5px;color:var(--muted)}
 .times input{display:block;width:100%;margin-top:4px;padding:9px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit}
 .link{width:100%;text-align:left;padding:14px;border-radius:18px;background:var(--panel);font-weight:600}
+.quote{font-size:12.5px;padding:5px 9px;margin-bottom:5px;border-left:3px solid currentColor;border-radius:6px;background:rgba(0,0,0,.06);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.me .quote{background:rgba(255,255,255,.18)}
+.ed{font-size:10.5px;opacity:.6;margin-left:6px}
+.reacts{display:flex;gap:4px;flex-wrap:wrap;margin-top:-2px}.reacts button{font-size:12.5px;padding:2px 7px;border-radius:99px;background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.12)}.reacts button.mine{box-shadow:0 0 0 1.5px #7c5cff}
+.seen{align-self:flex-end;font-size:11px;color:var(--muted);margin:0 8px 4px}
+.acts{position:absolute;inset:0;z-index:5;background:rgba(10,10,30,.35);display:flex;align-items:flex-end;animation:up .15s ease}
+.acts .box{width:100%;background:var(--panel);border-radius:22px 22px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+.acts .emo{display:flex;justify-content:space-around;margin-bottom:10px}.acts .emo button{font-size:26px;width:46px;height:46px;border-radius:50%}.acts .emo button:hover{background:var(--line)}
+.acts .do{display:block;width:100%;text-align:left;padding:13px 10px;border-radius:12px;font-size:15px;font-weight:600}.acts .do:hover{background:var(--line)}.acts .do.bad{color:#ff3b5c}
+.strip{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--panel);border-top:1px solid var(--line);font-size:13px;color:var(--muted);flex:none}
+.strip span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.strip b{color:var(--text)}
 .lightbox{position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:6;display:grid;place-items:center;cursor:zoom-out}.lightbox img{max-width:96%;max-height:92%;border-radius:12px}
 `;
 
@@ -146,12 +161,30 @@ class HusChatView extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.msgs = []; this.people = []; this.me = null; this.prefs = {}; this.toHouse = false; this.text = "";
     this.sheet = null; this.rec = null; this.playing = null; this.ready = false;
+    this.reads = {}; this.member = true; this.replyTo = null; this.editing = null; this.pending = null;
   }
   set hass(h) { this._hass = h; this.toggleAttribute("dark", !!h?.themes?.darkMode); if (this.isConnected && !this._unsub) this.subscribe(); else if (this.ready) this.paintTop(); }
   get hass() { return this.closable ? (haHass() || this._hass) : (this._hass || haHass()); }  // the bubble's window follows the page's
   get t() { return tr(this.hass); }
-  connectedCallback() { if (!this.shadowRoot.innerHTML) this.skeleton(); if (this.hass && !this._unsub) this.subscribe(); }
-  disconnectedCallback() { if (this._unsub) { this._unsub.then((u) => u()).catch(() => {}); this._unsub = null; } }
+  connectedCallback() {
+    if (!this.shadowRoot.innerHTML) this.skeleton();
+    if (this.hass && !this._unsub) this.subscribe();
+    // Open and in front: no phone notification meanwhile (told again every minute, and when it changes).
+    this._vis = () => this.presence();
+    document.addEventListener("visibilitychange", this._vis);
+    this._beat = setInterval(() => this.presence(), 60000);
+  }
+  disconnectedCallback() {
+    if (this._unsub) { this._unsub.then((u) => u()).catch(() => {}); this._unsub = null; }
+    document.removeEventListener("visibilitychange", this._vis); clearInterval(this._beat);
+    this.presence(false);
+  }
+  presence(force) {
+    const open = force ?? this.visible();
+    if (open === this._open && !open) return;
+    this._open = open;
+    this.hass?.connection?.sendMessagePromise({ type: "hus_chat/presence", open }).catch(() => {});
+  }
 
   subscribe() {
     const h = this.hass;
@@ -161,20 +194,28 @@ class HusChatView extends HTMLElement {
   }
   onEvent(e) {
     if (e.type === "init") {
-      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, agents: e.agents || null, ready: true });
-      this.paintTop(); this.paintList(true);
+      Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, agents: e.agents || null,
+        reads: e.reads || {}, member: e.member !== false, ready: true });
+      this.paintTop(); this.paintList(true); this.presence();
     } else if (e.type === "message") {
       this.msgs.push(e.message); this.paintList(this.nearBottom() || e.message.from === this.me?.id);
     } else if (e.type === "update") {
       const i = this.msgs.findIndex((m) => m.id === e.message.id);
       if (i >= 0) this.msgs[i] = e.message;
       this.paintList(false);
+    } else if (e.type === "delete") {
+      this.msgs = this.msgs.filter((m) => m.id !== e.message.id); this.paintList(false);
+    } else if (e.type === "clear") {
+      this.msgs = []; this.paintList(true);
+    } else if (e.type === "read") {
+      this.reads[e.message.who] = e.message.t; this.paintSeen(); return;
     }
     this.markRead();
   }
   visible() { return this.isConnected && this.offsetParent !== null && document.visibilityState === "visible"; }
   markRead() {
     const last = this.msgs[this.msgs.length - 1];
+    if (this.visible() && !this._open) this.presence();
     if (last && this.visible() && last.t > (this._readT || 0)) { this._readT = last.t; this.hass?.connection.sendMessagePromise({ type: "hus_chat/read", t: last.t }).catch(() => {}); }
   }
   nearBottom() { const l = this.$(".list"); return !l || l.scrollHeight - l.scrollTop - l.clientHeight < 120; }
@@ -229,16 +270,19 @@ class HusChatView extends HTMLElement {
     } else {
       if (m.image) body += `<img class="pic" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="${t.picture}">`;
       if (m.audio) body += `<div class="audio" data-audio="${esc(m.audio)}"><button class="play" data-a="play" data-src="${esc(m.audio)}" aria-label="${t.voice}">▶</button><div class="wave">${this.wave(m.id)}</div><span class="dur">0:00</span></div>`;
-      if (m.text) body += `<div class="b${house ? " house" : ""}">${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
+      if (m.text) body += `<div class="b${house ? " house" : ""}">${m.reply ? `<div class="quote">${esc(m.reply.name)}: ${esc(m.reply.text)}</div>` : ""}${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.edited ? `<span class="ed">(${t.edited})</span>` : ""}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
     }
+    const rx = Object.entries(m.reactions || {});
+    if (rx.length) body += `<div class="reacts">${rx.map(([e, who]) => `<button class="${who.includes(this.me?.id) ? "mine" : ""}" data-a="react" data-id="${esc(m.id)}" data-e="${esc(e)}">${e} ${who.length}</button>`).join("")}</div>`;
     const fresh = this._seen && !this._seen.has(m.id);
-    return `${who}<div class="row${me ? " me" : ""}${fresh ? " new" : ""}">${me ? "" : this.avatar(m.from, m.name, !lastOfGroup)}<div class="col">${body}${lastOfGroup ? `<div class="time">${this.hm(m.t)}</div>` : ""}</div></div>`;
+    return `${who}<div class="row${me ? " me" : ""}${fresh ? " new" : ""}">${me ? "" : this.avatar(m.from, m.name, !lastOfGroup)}<div class="col" data-a="msg" data-id="${esc(m.id)}">${body}${lastOfGroup ? `<div class="time">${this.hm(m.t)}</div>` : ""}</div></div>`;
   }
   paintList(scroll) {
     const t = this.t, list = this.$(".list");
     if (!list || this.sheet) return;
     if (!this.msgs.length) {
-      list.innerHTML = `<div class="empty"><div class="logo">${LOGO("e")}</div><b>${t.empty}</b>${t.emptyH}</div>`;
+      list.innerHTML = this.member ? `<div class="empty"><div class="logo">${LOGO("e")}</div><b>${t.empty}</b>${t.emptyH}</div>`
+        : `<div class="empty"><div class="logo">${LOGO("e")}</div>${t.notMember}</div>`;
       return;
     }
     let html = "", lastDay = "";
@@ -248,10 +292,39 @@ class HusChatView extends HTMLElement {
       html += this.item(m, this.msgs[i - 1], this.msgs[i + 1]);
     });
     const keep = list.scrollTop;
-    list.innerHTML = html;
+    list.innerHTML = html + `<div class="seen"></div>`;
+    this.paintSeen();
     this._seen = new Set(this.msgs.map((m) => m.id));  // only messages that arrive later slide in
     list.scrollTop = scroll ? list.scrollHeight : keep;
     list.querySelectorAll("img.pic").forEach((img) => img.addEventListener("load", () => { if (scroll) list.scrollTop = list.scrollHeight; }, { once: true }));
+  }
+  paintSeen() {  // under your last message: who has read it
+    const el = this.$(".seen"), mine = [...this.msgs].reverse().find((m) => m.from === this.me?.id);
+    if (!el) return;
+    const names = mine ? this.people.filter((p) => p.id !== this.me?.id && (this.reads[p.id] || 0) >= mine.t).map((p) => p.name.split(" ")[0]) : [];
+    const last = this.msgs[this.msgs.length - 1];
+    el.textContent = names.length && last?.id === mine?.id ? this.t.seen.replace("{names}", names.join(", ")) : "";
+  }
+  paintStrip() {  // replying to, or editing, a message - above the field
+    this.$(".strip")?.remove();
+    const t = this.t, m = this.replyTo || this.editing;
+    if (!m) return;
+    const el = document.createElement("div"); el.className = "strip";
+    el.innerHTML = `<span>${this.editing ? `<b>${t.editing}</b>` : `<b>${esc(t.replyTo.replace("{name}", m.name || ""))}</b> · ${esc(m.text || m.title || "")}`}</span>
+      <button class="ib" data-a="unstrip" aria-label="${t.cancel}" style="width:30px;height:30px">${ICON.close}</button>`;
+    this.$(".bar").before(el);
+  }
+  actions(id) {  // a tap on a message: react, reply, edit, delete
+    const t = this.t, m = this.msgs.find((x) => x.id === id);
+    if (!m || this.sheet) return;
+    const mine = m.from === this.me?.id;
+    const el = document.createElement("div"); el.className = "acts";
+    el.innerHTML = `<div class="box"><div class="emo">${["👍", "❤️", "😂", "😮", "😢", "🙏"].map((e) => `<button data-a="react" data-id="${esc(id)}" data-e="${e}">${e}</button>`).join("")}</div>
+      ${m.kind === "chat" || m.kind === "house" ? `<button class="do" data-a="reply" data-id="${esc(id)}">↩︎ ${t.reply}</button>` : ""}
+      ${mine && m.kind === "chat" && m.text ? `<button class="do" data-a="edit" data-id="${esc(id)}">✎ ${t.edit}</button>` : ""}
+      ${mine || this.me?.admin ? `<button class="do bad" data-a="del" data-id="${esc(id)}">🗑 ${t.del}</button>` : ""}</div>`;
+    el.addEventListener("click", (e) => { if (e.target === el) el.remove(); });
+    this.shadowRoot.appendChild(el);
   }
   paintBar() {
     const t = this.t, bar = this.$(".bar");
@@ -296,10 +369,22 @@ class HusChatView extends HTMLElement {
   async send(media = null) {
     const text = this.text.trim();
     if (!text && !media) return;
+    if (this.editing && !media) {
+      const id = this.editing.id;
+      this.editing = null; this.text = ""; this.paintStrip(); this.paintBar();
+      try { await this.hass.connection.sendMessagePromise({ type: "hus_chat/edit", message: id, text }); }
+      catch (e) { this.error(this.t.failed); }
+      return;
+    }
     const toHouse = this.toHouse && !media;
-    this.text = ""; this.paintBar(); this.$("textarea")?.focus();
-    try { await this.hass.connection.sendMessagePromise({ type: "hus_chat/send", text, ...(media ? { media } : {}), to_house: toHouse }); }
-    catch (e) { this.text = text; this.paintBar(); this.error(this.t.failed); }
+    // The same id when sent again after a failed try: if the first one did arrive, it isn't there twice.
+    const cid = this.pending?.text === text && !media ? this.pending.cid : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const reply = this.replyTo?.id;
+    this.text = ""; this.replyTo = null; this.paintStrip(); this.paintBar(); this.$("textarea")?.focus();
+    try {
+      await this.hass.connection.sendMessagePromise({ type: "hus_chat/send", text, ...(media ? { media } : {}), to_house: toHouse, cid, ...(reply ? { reply } : {}) });
+      this.pending = null;
+    } catch (e) { this.pending = { text, cid }; this.text = text; this.paintBar(); this.error(this.t.failed); }
   }
   async sendPicture(file) {
     if (!file) return;
@@ -444,7 +529,9 @@ class HusChatView extends HTMLElement {
         ${(this.phones || []).length ? `<div class="set"><b>${t.myPhones}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 6px">${t.myPhonesH}</small>
           ${this.phones.map((x) => `<div class="srow" style="margin-top:10px"><div>📱 ${esc(x.name)}${x.stale ? `<small>${t.stale}</small>` : ""}</div>
             <button class="sw ${x.on ? "on" : ""}" data-a="phone" data-svc="${esc(x.svc)}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}"></button></div>`).join("")}</div>` : ""}
-        ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>` : ""}</div>`;
+        ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>
+          <div class="set" style="margin-top:12px"><div class="srow"><div><b>${t.clear}</b><small>${t.clearH}</small></div>
+            <button class="chip" style="color:#ff3b5c" data-a="clearall">🗑</button></div></div>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
       el.querySelector("[data-agent]")?.addEventListener("change", (e) => this.setAgent(e.target.value));
       if (this.me?.admin) this.addSuggest(el.firstChild, "card");  // only admins can install
@@ -509,6 +596,22 @@ class HusChatView extends HTMLElement {
     if (!b) return;
     const a = b.dataset.a;
     if (a === "send") this.send();
+    else if (a === "msg") { if (!e.target.closest("button,img,.audio")) this.actions(b.dataset.id); }
+    else if (a === "react") { this.shadowRoot.querySelector(".acts")?.remove(); this.hass.connection.sendMessagePromise({ type: "hus_chat/react", message: b.dataset.id, emoji: b.dataset.e }).catch(() => {}); }
+    else if (a === "reply" || a === "edit") {
+      this.shadowRoot.querySelector(".acts")?.remove();
+      const m = this.msgs.find((x) => x.id === b.dataset.id);
+      if (a === "reply") { this.replyTo = m; this.editing = null; } else { this.editing = m; this.replyTo = null; this.text = m.text; this.toHouse = false; }
+      this.paintBar(); this.paintStrip(); this.$("textarea")?.focus();
+    }
+    else if (a === "del") {
+      this.shadowRoot.querySelector(".acts")?.remove();
+      if (confirm(this.t.delAsk)) this.hass.connection.sendMessagePromise({ type: "hus_chat/delete", message: b.dataset.id }).catch(() => this.error(this.t.failed));
+    }
+    else if (a === "unstrip") { if (this.editing) this.text = ""; this.replyTo = null; this.editing = null; this.paintStrip(); this.paintBar(); }
+    else if (a === "clearall") {
+      if (confirm(this.t.clearAsk)) this.hass.connection.sendMessagePromise({ type: "hus_chat/clear" }).catch(() => this.error(this.t.failed));
+    }
     else if (a === "house") { this.toHouse = !this.toHouse; this.paintBar(); this.$("textarea")?.focus(); }
     else if (a === "take") this.hass.connection.sendMessagePromise({ type: "hus_chat/take", message: b.dataset.id }).catch(() => {});
     else if (a === "rec") { if (this.toHouse) this.listen(); else this.startRec(); }

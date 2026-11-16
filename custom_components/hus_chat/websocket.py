@@ -15,7 +15,8 @@ from .const import DOMAIN, SHOWN, SIGNAL
 
 
 def async_setup(hass: HomeAssistant) -> None:
-    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules, ws_agent):
+    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules, ws_agent, ws_delete, ws_clear, ws_edit, ws_react,
+                ws_presence):
         websocket_api.async_register_command(hass, cmd)
 
 
@@ -36,18 +37,22 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     if not chat:
         connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
         return
-    uid = connection.user.id
+    uid, admin = connection.user.id, connection.user.is_admin
     await chat.async_refresh_users()
 
     @callback
     def forward(kind: str, m: dict[str, Any]) -> None:
-        connection.send_message(websocket_api.event_message(msg["id"], {"type": kind, "message": m, "unread": chat.unread(uid)}))
+        # Only what this person may see: a message to others never reaches their screen.
+        if kind in ("message", "update") and not (chat.member(uid, admin) and chat.can_see(m, uid)):
+            return
+        connection.send_message(websocket_api.event_message(msg["id"], {"type": kind, "message": m, "unread": chat.unread(uid, admin)}))
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL, forward)
     connection.send_result(msg["id"])
     connection.send_message(websocket_api.event_message(msg["id"], {
-        "type": "init", "messages": chat.msgs[-SHOWN:], "people": chat.people(), "me": _me(chat, connection),
-        "unread": chat.unread(uid), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, []),
+        "type": "init", "messages": chat.visible(uid, admin)[-SHOWN:], "people": chat.people(), "me": _me(chat, connection),
+        "member": chat.member(uid, admin), "reads": chat.reads(),
+        "unread": chat.unread(uid, admin), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, []),
         "rules": chat.get_rules(), "agents": chat.agents()}))
 
 
@@ -56,6 +61,8 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     vol.Optional("text", default=""): vol.All(str, vol.Length(max=4000)),
     vol.Optional("media"): {vol.Required("name"): str, vol.Required("kind"): vol.In(["image", "audio"])},
     vol.Optional("to_house", default=False): bool,
+    vol.Optional("cid"): vol.All(str, vol.Length(max=40)),  # the same id when sent again after a lost connection
+    vol.Optional("reply"): str,
 })
 @websocket_api.async_response
 async def ws_send(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -70,10 +77,14 @@ async def ws_send(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
     if not text and not media:
         connection.send_error(msg["id"], "empty", "Nothing to send")
         return
+    if not chat.member(connection.user.id, connection.user.is_admin):
+        connection.send_error(msg["id"], "unauthorized", "Not in the family chat")
+        return
     me = chat.sender_of(connection.user.id, connection.user.name)
     m = await chat.post(me, text, image=media["name"] if media and media["kind"] == "image" else None,
                         audio=media["name"] if media and media["kind"] == "audio" else None,
-                        kind="to_house" if msg["to_house"] else "chat", push=not msg["to_house"])
+                        kind="to_house" if msg["to_house"] else "chat", push=not msg["to_house"],
+                        to=[me] if msg["to_house"] else "all", cid=msg.get("cid"), reply=msg.get("reply"))
     chat.mark_read(connection.user.id, m["t"])
     connection.send_result(msg["id"], {"id": m["id"]})
     if msg["to_house"] and text:
@@ -96,7 +107,7 @@ def ws_read(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
     chat = _chat(hass)
     if chat:
         chat.mark_read(connection.user.id, msg["t"])
-    connection.send_result(msg["id"], {"unread": chat.unread(connection.user.id) if chat else 0})
+    connection.send_result(msg["id"], {"unread": chat.unread(connection.user.id, connection.user.is_admin) if chat else 0})
 
 
 @websocket_api.websocket_command({
@@ -159,3 +170,47 @@ def ws_agent(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
         connection.send_result(msg["id"], chat.set_agent(agent))
         return
     connection.send_result(msg["id"], chat.agents())
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/delete", vol.Required("message"): str})
+@websocket_api.async_response
+async def ws_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Your own message - or any, for an admin."""
+    chat = _chat(hass)
+    ok = bool(chat) and await chat.delete(msg["message"], connection.user.id, connection.user.is_admin)
+    connection.send_result(msg["id"], {"deleted": ok})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/clear"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_clear(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """An admin empties the whole chat."""
+    if chat := _chat(hass):
+        await chat.clear_all()
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/edit", vol.Required("message"): str,
+                                  vol.Required("text"): vol.All(str, vol.Length(min=1, max=4000))})
+@callback
+def ws_edit(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    chat = _chat(hass)
+    connection.send_result(msg["id"], {"edited": bool(chat) and chat.edit(msg["message"], connection.user.id, msg["text"])})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/react", vol.Required("message"): str,
+                                  vol.Required("emoji"): vol.In(["👍", "❤️", "😂", "😮", "😢", "🙏"])})
+@callback
+def ws_react(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    chat = _chat(hass)
+    connection.send_result(msg["id"], {"ok": bool(chat) and chat.react(msg["message"], connection.user.id, msg["emoji"])})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/presence", vol.Required("open"): bool})
+@callback
+def ws_presence(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The chat is open and in front (or not): no phone notification while you're looking at it."""
+    if chat := _chat(hass):
+        chat.set_active(connection.user.id, msg["open"])
+    connection.send_result(msg["id"])
