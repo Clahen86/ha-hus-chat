@@ -144,3 +144,23 @@ async def test_a_day_ahead_is_kept_over_a_restart(hass: HomeAssistant, chat, fre
     assert len(said) == 1 and "18:30" in said[0]["text"]  # once, though two were waiting
     assert c.cooks[f"wictor|{tomorrow}"]["sent"] is True
     watch.stop()
+
+
+async def test_a_child_gets_the_pligt_link_instead_of_take(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    c, _ = chat
+
+    class Pligt:
+        async def kid_link(self, name: str, machine: str) -> str | None:
+            return f"/pligter/k/abcdefgh/?machine={machine}" if name == "Lilly" else None
+
+    hass.bus.async_fire("appliance_watch_finished", {"entry_id": "e1", "name": "Vaskemaskine", "kind": "washing_machine"})
+    await hass.async_block_till_done()
+    m = c.msgs[-1]
+    assert await c.pligt_link(m, "Lilly") is None  # no Pligt-pilot: take it in the chat as before
+    hass.data["pligt_pilot"] = Pligt()
+    assert await c.pligt_link(m, "Lilly") == "/pligter/k/abcdefgh/?machine=washer"
+    assert await c.pligt_link(m, "Far") is None
+    push = c._push_data(m, kid_url="/pligter/k/abcdefgh/?machine=washer")
+    assert push["data"]["actions"][0] == {"action": "URI", "title": "Take it in Pligter", "uri": "/pligter/k/abcdefgh/?machine=washer"}
+    await c.take(m["id"], "person.lilly")
+    assert await c.pligt_link(m, "Lilly") is None  # taken: nothing to open

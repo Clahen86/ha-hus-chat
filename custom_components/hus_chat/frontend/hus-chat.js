@@ -7,7 +7,7 @@ import { qrSvg } from "./qr.js";
 
 const T = {
   da: { family: "Familien", home: "{names} er hjemme", homeOne: "{names} er hjemme", nobody: "Ingen er hjemme", write: "Skriv en besked …",
-    ask: "Spørg eller styr huset …", toHouse: "Til huset", house: "Huset", today: "I dag", yesterday: "I går", take: "✋ Jeg tager den",
+    ask: "Spørg eller styr huset …", toHouse: "Til huset", house: "Huset", today: "I dag", yesterday: "I går", take: "✋ Jeg tager den", takePligt: "Tag den i Pligter",
     took: "✓ {name} tog den", you: "dig", settings: "Indstillinger", agentT: "🤖 Hvem svarer for huset", agentH: "Den AI, der svarer, når du skriver eller taler til huset. Tilføj flere under Indstillinger → Enheder og tjenester (fx Google AI, OpenAI, Ollama).", asAssist: "Som i Assist", builtin: "Home Assistant", quiet: "Stille timer", quietH: "Kun det, der haster (røg, vand …), kommer igennem.",
     from: "Fra", to: "Til", push: "Beskeder på telefonen", pushH: "Når appen er lukket, kan du svare direkte i beskeden.",
     bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ eller tryk to gange hurtigt på den, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
@@ -28,7 +28,7 @@ const T = {
     appsLocal: "Kun hjemme: Home Assistant har ingen adresse udefra (Nabu Casa).", appName: "Navn", appWho: "Hvem er det?", appAlone: "Kun med navnet", appNew: "Lav link",
     appCopy: "Kopiér", appCopied: "Kopieret", appQr: "QR-kode", appQrH: "Scan koden med telefonens kamera", appShare: "Del", appDel: "Slet", appDelAsk: "Slette linket? Appen holder op med at virke for {n}.", appDevices: "{n} med beskeder", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
-    ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
+    ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it", takePligt: "Take it in Pligter",
     took: "✓ {name} took it", you: "you", settings: "Settings", agentT: "🤖 Who answers for the house", agentH: "The AI that answers when you write or speak to the house. Add more under Settings → Devices & services (e.g. Google AI, OpenAI, Ollama).", asAssist: "As in Assist", builtin: "Home Assistant", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
     from: "From", to: "To", push: "Messages on the phone", pushH: "When the app is closed you can answer right in the notification.",
     bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ or tap it twice quickly and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
@@ -312,7 +312,8 @@ class HusChatView extends HTMLElement {
       const bang = m.urgent ? `<span class="urgent">!</span>` : "";
       body = `<div class="card${m.urgent && !m.taken ? " hot" : ""}">${m.title ? `<div class="h">${bang}${esc(m.title)}</div>` : ""}${m.text ? `<div class="${m.title ? "s" : "h"}">${m.title ? "" : bang}${esc(m.text)}</div>` : ""}
         ${m.image ? `<img class="pic" style="margin-top:8px" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="">` : ""}
-        ${m.take && !m.taken ? `<div class="chips"><button class="chip go" data-a="take" data-id="${esc(m.id)}">${t.take}</button></div>` : ""}</div>
+        ${m.take && !m.taken ? `<div class="chips">${(pl => pl ? `<button class="chip go" data-a="pligt" data-url="${esc(pl)}">${t.takePligt}</button>`
+          : `<button class="chip go" data-a="take" data-id="${esc(m.id)}">${t.take}</button>`)(this.pligtFor(m))}</div>` : ""}</div>
         ${m.taken ? `<div class="done">${t.took.replace("{name}", m.taken.by === this.me?.id ? t.you : esc(m.taken.name || "?"))}</div>` : ""}`;
     } else {
       if (m.image) body += `<img class="pic" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="${t.picture}">`;
@@ -330,6 +331,17 @@ class HusChatView extends HTMLElement {
     if (rx.length) body += `<div class="reacts">${rx.map(([e, who]) => `<button class="${who.includes(this.me?.id) ? "mine" : ""}" data-a="react" data-id="${esc(m.id)}" data-e="${esc(e)}">${e} ${who.length}</button>`).join("")}</div>`;
     const fresh = this._seen && !this._seen.has(m.id);
     return `${who}<div class="row${me ? " me" : ""}${fresh ? " new" : ""}">${me ? "" : this.avatar(m.from, m.name, !lastOfGroup)}<div class="col" data-a="msg" data-id="${esc(m.id)}">${body}${lastOfGroup ? `<div class="time">${this.hm(m.t)}</div>` : ""}</div></div>`;
+  }
+  // A child takes a machine chore in Pligt-pilot (and gets paid there): the server gives the link, or none for grown-ups.
+  pligtFor(m) {
+    const cache = (this.pl ||= {}), e = cache[m.id], now = Date.now();
+    if (Date.now() / 1000 - m.t > 2 * 86400) return null;
+    if (!e || (!e.url && now - e.at > 30000)) {
+      cache[m.id] = { url: e?.url || null, at: now };
+      this.hass?.connection?.sendMessagePromise({ type: "hus_chat/pligt_link", message: m.id })
+        .then((r) => { if (r?.url && r.url !== cache[m.id].url) { cache[m.id].url = r.url; this.paintList(); } }).catch(() => {});
+    }
+    return e?.url || null;
   }
   paintList(scroll) {
     const t = this.t, list = this.$(".list");
@@ -782,6 +794,7 @@ class HusChatView extends HTMLElement {
       if (confirm(this.t.clearAsk)) this.hass.connection.sendMessagePromise({ type: "hus_chat/clear" }).catch(() => this.error(this.t.failed));
     }
     else if (a === "house") { this.toHouse = !this.toHouse; this.paintBar(); this.$("textarea")?.focus(); }
+    else if (a === "pligt") window.open(b.dataset.url, "_blank", "noopener");
     else if (a === "take") this.hass.connection.sendMessagePromise({ type: "hus_chat/take", message: b.dataset.id }).catch(() => {});
     else if (a === "rec") { if (this.toHouse) this.listen(); else this.startRec(); }
     else if (a === "lsend") this.endListen();

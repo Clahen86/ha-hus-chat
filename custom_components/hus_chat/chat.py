@@ -291,6 +291,20 @@ class Chat:
         await self._clear_phones(msg_id)  # gone from everyone's phone
         return m
 
+    async def pligt_link(self, m: dict[str, Any] | None, name: str) -> str | None:
+        """A child's link to the machine chore in Pligt-pilot, so children take it there (and get paid) instead of in
+        the chat. None: not a free machine message, Pligt-pilot isn't installed, or the name isn't one of its children."""
+        if not m or m.get("taken") or not (kind := self.machine_kind(m)):
+            return None
+        find = getattr(self.hass.data.get("pligt_pilot"), "kid_link", None)
+        if not find:
+            return None
+        try:
+            return await find(name, kind)
+        except Exception:  # noqa: BLE001 - Pligt-pilot is a guest here: never break the chat
+            _LOGGER.debug("No Pligt-pilot link for %s", name, exc_info=True)
+            return None
+
     def machine_message(self, key: str) -> dict[str, Any] | None:
         return next((m for m in reversed(self.msgs) if m.get("machine") == key and not m.get("taken")), None)
 
@@ -478,13 +492,14 @@ class Chat:
             return (self.links.get(sender[5:]) or {}).get("name") or "?"
         return sender.split(":")[2] or "?" if sender.count(":") >= 2 else "?"
 
-    def _push_data(self, msg: dict[str, Any], extra: str = "") -> dict[str, Any]:
+    def _push_data(self, msg: dict[str, Any], extra: str = "", kid_url: str | None = None) -> dict[str, Any]:
         t = _t(self.hass)
         body = (extra + "\n" if extra else "") + (msg["text"] or (t["image"] if msg.get("image") else t["audio"] if msg.get("audio") else ""))
         title = msg.get("title") or (f"{self._name(msg['from'])}" if msg["kind"] == "chat" else f"🏠 {t['house']}")
         actions = []
         if msg.get("take") and not msg.get("taken"):
-            actions.append({"action": f"HUSCHAT_TAKE_{msg['id']}", "title": t["take"]})
+            actions.append({"action": "URI", "title": t["take_pligt"], "uri": kid_url} if kid_url
+                           else {"action": f"HUSCHAT_TAKE_{msg['id']}", "title": t["take"]})
         actions.append({"action": "REPLY", "title": t["reply"], "behavior": "textInput"})
         data: dict[str, Any] = {"tag": f"huschat-{msg['id']}", "group": "hus-chat", "url": "/hus-chat", "clickAction": "/hus-chat",
                                 "actions": actions, "channel": "Hus-chat urgent" if msg.get("urgent") else "Hus-chat"}
@@ -505,8 +520,9 @@ class Chat:
     async def _deliver(self, msg: dict[str, Any]) -> None:
         sent = set()
         for p in self._recipients(msg):
+            kid_url = await self.pligt_link(msg, p["name"]) if p["phones"] and msg.get("take") else None
             for svc in p["phones"]:
-                await self._notify(svc, self._push_data(msg))
+                await self._notify(svc, self._push_data(msg, kid_url=kid_url))
             for lid in p.get("web") or []:
                 await self._webpush(lid, msg)
             sent.add(p["id"])
@@ -530,8 +546,9 @@ class Chat:
         for p in self._recipients(msg, everyone=True):
             if p["id"] in sent:
                 continue
+            kid_url = await self.pligt_link(msg, p["name"]) if p["phones"] else None
             for svc in p["phones"]:
-                await self._notify(svc, self._push_data(msg, _t(self.hass)["nobody"]))
+                await self._notify(svc, self._push_data(msg, _t(self.hass)["nobody"], kid_url))
             for lid in p.get("web") or []:
                 await self._webpush(lid, msg, _t(self.hass)["nobody"])
 

@@ -40,7 +40,7 @@ Found in your Home Assistant – nothing to set up:
 | 🔥 **Smoke, water, gas, CO** | Rings like an alarm on the phones – also on silent and in quiet hours. Says the room. |
 | 🔔 **Doorbell** | With a picture from the camera at the door. |
 | 🚨 **Alarm** | When it goes off (urgent), or is armed and disarmed. Off from the start. |
-| 🍳 **Pligt-pilot and Madplan** | If they are installed, nothing to set up: a machine taken in one is taken in the other, "Dinner is ready" when a child is done cooking, and "Silas is cooking today" at 7 in the morning. |
+| 🍳 **Pligt-pilot and Madplan** | If they are installed, nothing to set up: a machine taken in one is taken in the other, "Dinner is ready" when a child is done cooking, "Silas is cooking today" at 7 in the morning, and a child gets "Take it in Pligter" instead of "I'll take it", so they get paid for it. |
 
 Under ⚙️ → **Messages from the house** an admin picks who gets each kind: *at home*, *everyone* or chosen persons. Each person can turn a kind off for themselves – except smoke and water. If nobody takes a message within 10 minutes, it goes to everyone.
 
@@ -111,7 +111,7 @@ Til børn og andre uden en Home Assistant-konto: under ⚙️ → **Chatten som 
 - 🔥 **Røg, vand, gas og CO**: ringer som en alarm på telefonen – også på lydløs og i stille timer. Siger hvilket rum.
 - 🔔 **Det ringer på døren**: med et billede fra kameraet ved døren.
 - 🚨 **Alarm**: når den går (haster), eller slås til og fra. Slået fra fra start.
-- 🍳 **Pligt-pilot og Madplan**: hvis de er installeret, uden opsætning: en maskine taget i den ene er taget i den anden, "Maden er klar", når et barn har lavet mad, og "Silas laver mad i dag" kl. 7 om morgenen.
+- 🍳 **Pligt-pilot og Madplan**: hvis de er installeret, uden opsætning: en maskine taget i den ene er taget i den anden, "Maden er klar", når et barn har lavet mad, "Silas laver mad i dag" kl. 7 om morgenen, og et barn får "Tag den i Pligter" i stedet for "Jeg tager den", så det får penge for den.
 
 Under ⚙️ → **Beskeder fra huset** vælger en admin, hvem der får hvad: *hjemme*, *alle* eller bestemte personer. Hver person kan slå en slags fra for sig selv – undtagen røg og vand. Tager ingen en besked inden 10 minutter, går den til alle.
 

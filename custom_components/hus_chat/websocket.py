@@ -15,7 +15,7 @@ from .const import DOMAIN, SHOWN, SIGNAL
 
 
 def async_setup(hass: HomeAssistant) -> None:
-    for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules, ws_agent, ws_delete, ws_clear, ws_edit, ws_react,
+    for cmd in (ws_subscribe, ws_send, ws_take, ws_pligt_link, ws_read, ws_prefs, ws_rules, ws_agent, ws_delete, ws_clear, ws_edit, ws_react,
                 ws_presence, ws_links, ws_extra, ws_speak):
         websocket_api.async_register_command(hass, cmd)
 
@@ -100,6 +100,18 @@ async def ws_take(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
     if chat:
         await chat.take(msg["message"], chat.sender_of(connection.user.id, connection.user.name))
     connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/pligt_link", vol.Required("message"): str})
+@websocket_api.async_response
+async def ws_pligt_link(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """For a child: the link to the machine chore in Pligt-pilot instead of "I'll take it". None for everyone else."""
+    chat = _chat(hass)
+    url = None
+    if chat:
+        sender = chat.sender_of(connection.user.id, connection.user.name)
+        url = await chat.pligt_link(chat.find(msg["message"]), chat._name(sender))
+    connection.send_result(msg["id"], {"url": url})
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/read", vol.Required("t"): vol.Coerce(float)})
