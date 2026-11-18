@@ -32,6 +32,10 @@ from homeassistant.util import dt as dt_util, slugify
 from .const import AI_RETRY_S, AI_TIMEOUT_S, BUILTIN_AGENT, DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, NOTE_FALLBACK, SIGNAL, STALE_S, TEXT
 
 _LOGGER = logging.getLogger(__name__)
+GUARD_DOMAINS = ("lock", "alarm_control_panel")
+GUARD_COVERS = ("garage", "gate", "door")
+# a safety net before Assist even looks: locks, alarms, garage and gate - in the languages the chat speaks
+GUARD_WORDS = re.compile(r"\b(lås|låse|låst|låsen|låsene|lock|locks|locked|unlock|alarm|alarmen|tyverialarm|garage|garagen|garageport|garageporten|port|porten|gate|schloss|tor|slot|serrure|portail)\b", re.I)
 MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a|mp3|aac)$")
 
 
@@ -713,9 +717,17 @@ class Chat:
     def add_link(self, name: str, person: str | None) -> dict[str, Any]:
         lid = uuid.uuid4().hex[:10]
         self.links[lid] = {"name": name.strip()[:40], "person": person or None, "token": secrets.token_urlsafe(24),
-                           "created": time.time(), "subs": []}
+                           "created": time.time(), "subs": [], "house": False}
         self._save()
         return self.links[lid]
+
+    def set_link_house(self, lid: str, on: bool) -> bool:
+        """May this link talk to the house? Off from the start: a link has no login."""
+        if lid not in self.links:
+            return False
+        self.links[lid]["house"] = bool(on)
+        self._save()
+        return True
 
     def remove_link(self, lid: str) -> bool:
         if self.links.pop(lid, None) is None:
@@ -763,6 +775,57 @@ class Chat:
 
     # ---------- the house answers (Assist) ----------
     async def ask_house(self, user_id: str | None, text: str) -> dict[str, Any]:
+        if user_id and user_id.startswith("link:"):
+            return await self._ask_from_link(user_id, text)
+        return await self._ask_house(user_id, text)
+
+    async def _ask_from_link(self, uid: str, text: str) -> dict[str, Any]:
+        """A link may talk to the house only when an admin allowed it, only through Home Assistant's own Assist (no AI
+        with tools), and never about locks, alarms or garage doors and gates - a link has no login."""
+        if not (self.links.get(uid[5:]) or {}).get("house"):
+            return await self.post(HOUSE, _t(self.hass)["house_off"], kind="assist", push=False, to=[self.sender_of(uid)])
+        if await self._guarded(text):
+            return await self.post(HOUSE, _t(self.hass)["house_guarded"], kind="assist", push=False, to=[self.sender_of(uid)])
+        answer = await self._converse(None, text, uid, builtin=True)
+        return await self.post(HOUSE, answer or "🤷", kind="assist", push=False, to=[self.sender_of(uid)])
+
+    async def _guarded(self, text: str) -> bool:
+        """True when the sentence would touch a lock, an alarm, or a garage door or gate - or can't be checked."""
+        if GUARD_WORDS.search(text):
+            return True
+        try:
+            import dataclasses
+
+            from homeassistant.components import conversation
+            from homeassistant.helpers import intent
+
+            agent = conversation.async_get_agent(self.hass, BUILTIN_AGENT)
+            fields = {f.name for f in dataclasses.fields(conversation.ConversationInput)}
+            args = {"text": text, "context": Context(), "conversation_id": None, "device_id": None, "satellite_id": None,
+                    "language": self.hass.config.language, "agent_id": BUILTIN_AGENT}
+            result = await agent.async_recognize_intent(conversation.ConversationInput(**{k: v for k, v in args.items() if k in fields}))
+        except Exception:  # noqa: BLE001 - can't be checked: not allowed
+            _LOGGER.debug("Could not check a sentence from a link", exc_info=True)
+            return True
+        if result is None or not getattr(result, "intent", None):
+            return False  # not understood: Assist does nothing either
+        ent = {k: getattr(v, "value", v) for k, v in (result.entities or {}).items()}
+        dom = ent.get("domain")
+        cls = ent.get("device_class")
+        match = intent.async_match_targets(self.hass, intent.MatchTargetsConstraints(
+            name=ent.get("name") if isinstance(ent.get("name"), str) else None,
+            area_name=ent.get("area") if isinstance(ent.get("area"), str) else None,
+            floor_name=ent.get("floor") if isinstance(ent.get("floor"), str) else None,
+            domains=[dom] if isinstance(dom, str) else (list(dom) if isinstance(dom, (list, tuple, set)) else None),
+            device_classes=[cls] if isinstance(cls, str) else (list(cls) if isinstance(cls, (list, tuple, set)) else None),
+            assistant="conversation"))
+        for st in match.states if match.is_match else []:
+            domain = st.entity_id.split(".", 1)[0]
+            if domain in GUARD_DOMAINS or (domain == "cover" and st.attributes.get("device_class") in GUARD_COVERS):
+                return True
+        return False
+
+    async def _ask_house(self, user_id: str | None, text: str) -> dict[str, Any]:
         """Like Assist with "prefer local commands": Home Assistant's own Assist first - "turn off the lights" is done at
         once - and only what it doesn't understand goes to the chosen AI. If the AI can't answer (quota used up, offline,
         no answer in 45 s), Home Assistant's answer is used with a small note, and the AI rests for 30 minutes."""
@@ -792,7 +855,7 @@ class Chat:
         key = f"{user_id or ''}|{agent or ''}"  # a conversation goes on with the same AI
         try:
             res = await asyncio.wait_for(conversation.async_converse(
-                self.hass, text, self.conversations.get(key), Context(user_id=user_id), language=self.hass.config.language,
+                self.hass, text, self.conversations.get(key), Context(user_id=None if (user_id or "").startswith("link:") else user_id), language=self.hass.config.language,
                 agent_id=agent), timeout)
         except Exception:  # noqa: BLE001 - also a timeout
             _LOGGER.warning("Assist did not answer (%s)", agent or "Home Assistant", exc_info=True)

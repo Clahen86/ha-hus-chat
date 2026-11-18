@@ -234,6 +234,19 @@ def _reply(cid, kind, text):
     return SimpleNamespace(conversation_id=cid, response=SimpleNamespace(response_type=SimpleNamespace(value=kind), speech={"plain": {"speech": text}}))
 
 
+def _fake_conversation(fake):
+    """Home Assistant's conversation swapped for a fake - also when the real one was imported by another test."""
+    import contextlib
+    import sys
+
+    import homeassistant.components as components
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(patch.dict(sys.modules, {"homeassistant.components.conversation": fake}))
+    stack.enter_context(patch.object(components, "conversation", fake, create=True))
+    return stack
+
+
 async def test_the_chosen_ai_answers_for_the_house(hass: HomeAssistant, chat) -> None:
     """Home Assistant's own first (like "prefer local commands"); what it doesn't understand goes to the chosen AI -
     nothing chosen: the one Assist uses. A removed AI: Home Assistant's own answers."""
@@ -250,7 +263,7 @@ async def test_the_chosen_ai_answers_for_the_house(hass: HomeAssistant, chat) ->
             return _reply("h", "action_done", "Slukket") if text == "Sluk lyset" else _reply("h", "error", "Forstod ikke")
         return _reply("c1", "query_answer", "Ja")
 
-    with patch.dict(sys.modules, {"homeassistant.components.conversation": SimpleNamespace(async_converse=converse)}), \
+    with _fake_conversation(SimpleNamespace(async_converse=converse)), \
             patch.object(type(c), "assist_agent", lambda self: "conversation.google_ai"):
         assert c.agents()["assist"] == "conversation.google_ai" and c.agents()["chosen"] is None
         m = await c.ask_house("u-claus", "Sluk lyset")
@@ -283,7 +296,7 @@ async def test_falls_back_to_home_assistant_when_the_ai_cant_answer(hass: HomeAs
             return _reply("g", "error", "Quota exceeded")
         return _reply("h", "error", "Undskyld, det forstod jeg ikke")
 
-    with patch.dict(sys.modules, {"homeassistant.components.conversation": SimpleNamespace(async_converse=converse)}):
+    with _fake_conversation(SimpleNamespace(async_converse=converse)):
         m = await c.ask_house("u-claus", "Hvad skal vi have at spise?")
         assert seen == [None, "conversation.google_ai", None]
         assert m["text"] == "Undskyld, det forstod jeg ikke" and "Google AI" in m["note"]
@@ -305,7 +318,7 @@ async def test_an_ai_that_hangs_is_given_up(hass: HomeAssistant, chat) -> None:
             await asyncio.sleep(10)
         return _reply("h", "error", "Forstod ikke")
 
-    with patch.dict(sys.modules, {"homeassistant.components.conversation": SimpleNamespace(async_converse=converse)}), \
+    with _fake_conversation(SimpleNamespace(async_converse=converse)), \
             patch("custom_components.hus_chat.chat.AI_TIMEOUT_S", 0.05):
         m = await c.ask_house("u-claus", "Fortæl en historie")
         assert m["note"] and m["text"] == "Forstod ikke"

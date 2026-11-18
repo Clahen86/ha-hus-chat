@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
 from custom_components.hus_chat import webpush
+from custom_components.hus_chat.chat import GUARD_WORDS
 from custom_components.hus_chat.const import HOUSE
 
 from .test_chat import chat  # noqa: F401 - the family fixture
@@ -93,8 +94,9 @@ async def test_the_app_pages_and_api(hass: HomeAssistant, hass_client_no_auth, c
     assert r.status == 200 and (await r.json())["id"]
     assert c.msgs[-1]["text"] == "Hej fra Silas" and c.msgs[-1]["name"] == "Silas"
     # never the house's commands, never an admin's
-    r = await client.post(f"/api/hus_chat/app/{token}/ws", json={"type": "hus_chat/send", "text": "Lås døren op", "to_house": True})
-    assert c.msgs[-1]["kind"] == "chat"
+    r = await client.post(f"/api/hus_chat/app/{token}/ws", json={"type": "hus_chat/send", "text": "Tænd lyset", "to_house": True})
+    await hass.async_block_till_done()
+    assert c.msgs[-2]["kind"] == "to_house" and c.msgs[-1]["from"] == HOUSE and "Settings" in c.msgs[-1]["text"]  # not allowed
     assert (await (await client.post(f"/api/hus_chat/app/{token}/ws", json={"type": "hus_chat/clear"})).json())["error"] == "unsupported"
     assert (await client.post("/api/hus_chat/app/nope/ws", json={"type": "hus_chat/send", "text": "x"})).status == 404
     r = await client.post(f"/api/hus_chat/app/{token}/push", json={"subscription": _sub()[2]})
@@ -105,3 +107,46 @@ async def test_the_app_pages_and_api(hass: HomeAssistant, hass_client_no_auth, c
         init = json.loads(line.decode()[6:])
     assert init["type"] == "init" and init["me"]["name"] == "Silas" and init["push_key"]
     assert any(m["text"] == "Hej fra Silas" for m in init["messages"])
+
+
+async def test_a_link_may_talk_to_the_house_when_allowed_but_never_to_locks(hass: HomeAssistant, chat, monkeypatch) -> None:  # noqa: F811
+    c, _ = chat
+    lid = c.link_by_token(c.add_link("Silas", None)["token"])
+    assert c.links[lid]["house"] is False
+    asked = []
+
+    async def converse(agent, text, user_id, builtin=False, timeout=None):
+        asked.append((agent, text, user_id, builtin))
+        return "Lyset er tændt"
+
+    async def guarded(text):
+        return "hoveddør" in text.lower() or bool(GUARD_WORDS.search(text))
+
+    monkeypatch.setattr(c, "_converse", converse)
+    monkeypatch.setattr(c, "_guarded", guarded)
+    assert c.set_link_house(lid, True) and not c.set_link_house("nope", True)
+    m = await c.ask_house(f"link:{lid}", "Tænd lyset i stuen")
+    assert m["text"] == "Lyset er tændt" and asked == [(None, "Tænd lyset i stuen", f"link:{lid}", True)]  # only Assist, no AI
+    for text in ("Lås hoveddøren op", "Slå alarmen fra", "Åbn garageporten", "Åbn hoveddøren"):
+        m = await c.ask_house(f"link:{lid}", text)
+        assert "garage" in m["text"].lower() and len(asked) == 1, text
+    c.set_link_house(lid, False)
+    m = await c.ask_house(f"link:{lid}", "Tænd lyset i stuen")
+    assert len(asked) == 1 and "Settings" in m["text"]
+
+
+async def test_the_guard_finds_a_lock_by_its_name(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    c, _ = chat
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "intent", {})
+    assert await async_setup_component(hass, "conversation", {})
+    hass.config.language = "en"
+    hass.states.async_set("lock.front_door", "locked", {"friendly_name": "Front door"})
+    hass.states.async_set("light.kitchen", "off", {"friendly_name": "Kitchen light"})
+    from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
+
+    for entity_id in ("lock.front_door", "light.kitchen"):
+        async_expose_entity(hass, "conversation", entity_id, True)
+    assert await c._guarded("Unlock the front door") and await c._guarded("open the garage")
+    assert await c._guarded("Turn off the front door")   # no lock word: found by its name
+    assert not await c._guarded("Turn on the kitchen light")

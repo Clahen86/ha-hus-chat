@@ -53,7 +53,8 @@ def init_payload(chat: Chat, uid: str) -> dict[str, Any]:
     me = chat.sender_of(uid)
     lid = uid[5:]
     return {"type": "init", "messages": chat.visible(uid)[-SHOWN:], "people": chat.people(),
-            "me": {"user_id": uid, "id": me, "name": chat._name(me), "admin": False, "app": True},
+            "me": {"user_id": uid, "id": me, "name": chat._name(me), "admin": False, "app": True,
+                   "house": bool(chat.links.get(lid, {}).get("house"))},
             "member": True, "reads": chat.reads(), "unread": chat.unread(uid), "read": chat.read.get(uid, 0),
             "prefs": chat.get_prefs(uid), "phones": [], "rules": chat.get_rules(), "agents": None,
             "push_key": chat.vapid.public if chat.vapid else None, "pinned": chat.pinned, "subs": len(chat.links.get(lid, {}).get("subs") or [])}
@@ -201,8 +202,8 @@ class AppApiView(HomeAssistantView):
         return self.json({"name": name, "kind": kind})
 
     async def _handle(self, chat: Chat, uid: str, me: str, msg: dict[str, Any]) -> Any:
-        """The same commands as websocket.py - without the admin ones, and without asking the house (a link that
-        got out must never be able to unlock a door)."""
+        """The same commands as websocket.py - without the admin ones. Asking the house only when an admin turned it on
+        for the link, and never about locks, alarms or garage doors (a link that got out must never open a door)."""
         kind = str(msg.get("type") or "").removeprefix(f"{DOMAIN}/")
         if kind == "send":
             text, media = str(msg.get("text") or "").strip()[:4000], msg.get("media")
@@ -210,10 +211,14 @@ class AppApiView(HomeAssistantView):
                 return {"error": "bad_media"}
             if not text and not media:
                 return {"error": "empty"}
+            to_house = bool(msg.get("to_house")) and bool(text) and not media
             m = await chat.post(me, text, image=media["name"] if media and media["kind"] == "image" else None,
                                 audio=media["name"] if media and media["kind"] == "audio" else None,
+                                kind="to_house" if to_house else "chat", push=not to_house, to=[me] if to_house else "all",
                                 cid=str(msg.get("cid") or "")[:40] or None, reply=msg.get("reply") if isinstance(msg.get("reply"), str) else None)
             chat.mark_read(uid, m["t"])
+            if to_house:  # only answered when an admin allowed this link (checked again in ask_house)
+                chat.hass.async_create_background_task(chat.ask_house(uid, text), f"{DOMAIN} link asks the house")
             return {"id": m["id"]}
         if kind == "take" and isinstance(msg.get("message"), str):
             await chat.take(msg["message"], me)

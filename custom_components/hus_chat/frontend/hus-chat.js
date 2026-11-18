@@ -26,7 +26,7 @@ const T = {
     speakT: "Læs højt", speakH: "Husets beskeder siges på en højttaler, når nogen er hjemme – ikke om natten, undtagen alarmer.", speakPick: "– vælg højttaler –", speakTest: "Prøv", speakNoTts: "Ingen tale (TTS) er sat op i Home Assistant.",
     apps: "Chatten som app – uden login", appsH: "Til børn og andre uden en Home Assistant-konto. De åbner linket og vælger »Føj til hjemmeskærm«. Linket giver kun adgang til chatten.",
     appsLocal: "Kun hjemme: Home Assistant har ingen adresse udefra (Nabu Casa).", appName: "Navn", appWho: "Hvem er det?", appAlone: "Kun med navnet", appNew: "Lav link",
-    appCopy: "Kopiér", appCopied: "Kopieret", appQr: "QR-kode", appQrH: "Scan koden med telefonens kamera", appShare: "Del", appDel: "Slet", appDelAsk: "Slette linket? Appen holder op med at virke for {n}.", appDevices: "{n} med beskeder", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
+    appHouse: "Må tale med huset", appHouseH: "Lys, varme og spørgsmål – aldrig låse, alarm og garageport", appCopy: "Kopiér", appCopied: "Kopieret", appQr: "QR-kode", appQrH: "Scan koden med telefonens kamera", appShare: "Del", appDel: "Slet", appDelAsk: "Slette linket? Appen holder op med at virke for {n}.", appDevices: "{n} med beskeder", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it", takePligt: "Take it in Pligter",
     took: "✓ {name} took it", you: "you", settings: "Settings", agentT: "🤖 Who answers for the house", agentH: "The AI that answers when you write or speak to the house. Add more under Settings → Devices & services (e.g. Google AI, OpenAI, Ollama).", asAssist: "As in Assist", builtin: "Home Assistant", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
@@ -47,7 +47,7 @@ const T = {
     speakT: "Read aloud", speakH: "The house's messages are said on a speaker when somebody is home – not at night, except alarms.", speakPick: "– pick a speaker –", speakTest: "Try", speakNoTts: "No speech (TTS) is set up in Home Assistant.",
     apps: "The chat as an app – no login", appsH: "For children and others without a Home Assistant account. They open the link and choose “Add to Home Screen”. The link only opens the chat.",
     appsLocal: "Only at home: Home Assistant has no outside address (Nabu Casa).", appName: "Name", appWho: "Who is it?", appAlone: "Just the name", appNew: "Make link",
-    appCopy: "Copy", appCopied: "Copied", appQr: "QR code", appQrH: "Scan the code with the phone's camera", appShare: "Share", appDel: "Delete", appDelAsk: "Delete the link? The app stops working for {n}.", appDevices: "{n} with messages", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
+    appHouse: "May talk to the house", appHouseH: "Lights, heating and questions – never locks, the alarm or garage doors", appCopy: "Copy", appCopied: "Copied", appQr: "QR code", appQrH: "Scan the code with the phone's camera", appShare: "Share", appDel: "Delete", appDelAsk: "Delete the link? The app stops working for {n}.", appDevices: "{n} with messages", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
 };
 const COLORS = ["#ff8a65", "#4db6ac", "#9575cd", "#4fc3f7", "#f06292", "#aed581", "#ffb74d", "#7986cb"];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -413,7 +413,7 @@ class HusChatView extends HTMLElement {
     }
     bar.innerHTML = `<button class="round cam" data-a="plus" aria-label="${t.more}">${ICON.plus}</button>
       <div class="field"><textarea rows="1" placeholder="${esc(this.toHouse ? t.ask : t.write)}" aria-label="${esc(t.write)}">${esc(this.text)}</textarea>
-        ${window.HUS_CHAT_APP ? "" : `<button class="hb ${this.toHouse ? "on" : ""}" data-a="house" title="${esc(t.toHouse)}"><span class="mini">${LOGO("h")}</span>${this.toHouse ? t.toHouse : ""}</button>`}</div>
+        ${window.HUS_CHAT_APP && !this.me?.house ? "" : `<button class="hb ${this.toHouse ? "on" : ""}" data-a="house" title="${esc(t.toHouse)}"><span class="mini">${LOGO("h")}</span>${this.toHouse ? t.toHouse : ""}</button>`}</div>
       ${this.text.trim() ? `<button class="round go" data-a="send" aria-label="Send">${ICON.send}</button>` : `<button class="round go" data-a="rec" aria-label="${t.voice}">${ICON.mic}</button>`}`;
     const ta = bar.querySelector("textarea");
     const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(120, ta.scrollHeight) + "px"; };
@@ -478,6 +478,26 @@ class HusChatView extends HTMLElement {
   }
   // "To the house" by voice, like Home Assistant's own voice commands: Assist's speech-to-text listens, stops by itself
   // when you stop talking, and the words are sent to the house - no voice message to send yourself.
+  // From a link there is no Assist pipeline: the phone's own speech recognition, and the text goes to the house.
+  listenBrowser() {
+    const t = this.t, SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { this.error(t.noStt); return; }
+    if (this.listening) return;
+    const r = new SR();
+    r.lang = this.hass?.language || document.documentElement.lang || "da";
+    r.interimResults = false; r.maxAlternatives = 1;
+    const L = this.listening = { browser: r, start: Date.now(), end: () => { try { r.stop(); } catch (e) { /* stopped */ } } };
+    this.paintBar();
+    let got = "";
+    r.onresult = (e) => { got = e.results?.[0]?.[0]?.transcript || ""; };
+    r.onerror = (e) => { if (e.error === "not-allowed") this.error(t.micNo); };
+    r.onend = () => {
+      if (this.listening === L) { this.listening = null; this.paintBar(); }
+      if (L.cancel) return;
+      if (got.trim()) { this.text = got.trim(); this.toHouse = true; this.send(); } else this.error(t.heard);
+    };
+    try { r.start(); } catch (e) { this.listening = null; this.paintBar(); this.error(t.noStt); }
+  }
   async listen() {
     const t = this.t, conn = this.hass?.connection;
     if (!conn || this.listening) return;
@@ -533,6 +553,7 @@ class HusChatView extends HTMLElement {
   stopListen(keep) {
     const L = this.listening;
     if (!L) return;
+    if (L.browser) { L.cancel = true; try { L.browser.abort(); } catch (e) { /* stopped */ } return; }  // cancelled: nothing is sent
     this.listening = null; L.ended = true; clearTimeout(L.timer);
     try { L.node?.disconnect(); L.ctx?.close(); } catch (e) { /* closed */ }
     L.stream.getTracks().forEach((x) => x.stop());
@@ -678,6 +699,8 @@ class HusChatView extends HTMLElement {
     const persons = this.people.filter((p) => p.id.startsWith("person."));
     const rows = L.links.map((x) => `<div style="padding:12px 0;border-top:1px solid var(--line)"><div class="srow"><div><b>📱 ${esc(x.name)}</b>
         <small>${esc(persons.find((p) => p.id === x.person)?.name || "")}${x.devices ? `${x.person ? " · " : ""}${esc(t.appDevices.replace("{n}", x.devices))}` : ""}</small></div></div>
+      <div class="srow" style="margin-top:8px"><div><b style="font-weight:600">${t.appHouse}</b><small>${t.appHouseH}</small></div>
+        <button class="sw ${x.house ? "on" : ""}" data-a="apphouse" data-id="${esc(x.id)}" data-on="${x.house ? 1 : 0}" role="switch" aria-checked="${!!x.house}" aria-label="${esc(t.appHouse)}"></button></div>
       <div class="chips" style="margin-top:8px"><button class="chip" data-a="appcopy" data-u="${esc(x.url)}">${t.appCopy}</button>
         <button class="chip" data-a="appqr" data-u="${esc(x.url)}">${t.appQr}</button>
         ${navigator.share ? `<button class="chip" data-a="appshare" data-u="${esc(x.url)}" data-n="${esc(x.name)}">${t.appShare}</button>` : ""}
@@ -789,6 +812,7 @@ class HusChatView extends HTMLElement {
         <small style="display:block;color:var(--muted);font-size:11px;margin-top:2px;word-break:break-all;user-select:all">${esc(b.dataset.u)}</small></div>`);
     }
     else if (a === "appshare") navigator.share({ title: b.dataset.n, url: b.dataset.u }).catch(() => {});
+    else if (a === "apphouse") this.loadLinks({ house: { id: b.dataset.id, on: b.dataset.on !== "1" } });
     else if (a === "appdel") { if (confirm(this.t.appDelAsk.replace("{n}", b.dataset.n))) this.loadLinks({ delete: b.dataset.id }); }
     else if (a === "clearall") {
       if (confirm(this.t.clearAsk)) this.hass.connection.sendMessagePromise({ type: "hus_chat/clear" }).catch(() => this.error(this.t.failed));
@@ -796,7 +820,7 @@ class HusChatView extends HTMLElement {
     else if (a === "house") { this.toHouse = !this.toHouse; this.paintBar(); this.$("textarea")?.focus(); }
     else if (a === "pligt") window.open(b.dataset.url, "_blank", "noopener");
     else if (a === "take") this.hass.connection.sendMessagePromise({ type: "hus_chat/take", message: b.dataset.id }).catch(() => {});
-    else if (a === "rec") { if (this.toHouse) this.listen(); else this.startRec(); }
+    else if (a === "rec") { if (this.toHouse) (window.HUS_CHAT_APP ? this.listenBrowser() : this.listen()); else this.startRec(); }
     else if (a === "lsend") this.endListen();
     else if (a === "lcancel") this.stopListen();
     else if (a === "recsend") this.stopRec(true);

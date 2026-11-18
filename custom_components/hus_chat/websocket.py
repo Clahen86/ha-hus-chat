@@ -248,7 +248,7 @@ def _links(hass: HomeAssistant, chat: Chat) -> dict[str, Any]:
     from .app import PAGE
 
     return {"outside": outside, "links": [{"id": lid, "name": x.get("name"), "person": x.get("person"), "created": x.get("created"),
-                                           "devices": len(x.get("subs") or []), "url": f"{base}{PAGE}/{x['token']}/"}
+                                           "devices": len(x.get("subs") or []), "house": bool(x.get("house")), "url": f"{base}{PAGE}/{x['token']}/"}
                                           for lid, x in sorted(chat.links.items(), key=lambda kv: kv[1].get("created", 0))]}
 
 
@@ -256,6 +256,7 @@ def _links(hass: HomeAssistant, chat: Chat) -> dict[str, Any]:
     vol.Required("type"): f"{DOMAIN}/links",
     vol.Optional("create"): {vol.Required("name"): vol.All(str, vol.Length(min=1, max=40)), vol.Optional("person"): vol.Any(None, str)},
     vol.Optional("delete"): str,
+    vol.Optional("house"): {vol.Required("id"): str, vol.Required("on"): bool},
 })
 @websocket_api.require_admin
 @callback
@@ -271,6 +272,8 @@ def ws_links(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
             connection.send_error(msg["id"], "invalid", "Unknown person")
             return
         chat.add_link(c["name"], person)
+    if h := msg.get("house"):
+        chat.set_link_house(h["id"], h["on"])
     if lid := msg.get("delete"):
         chat.remove_link(lid)
         from homeassistant.helpers.dispatcher import async_dispatcher_send
