@@ -3,6 +3,7 @@
 // a tap on the tab brings it back, and so does a new message.
 import { defineSupport, defineUpdate } from "./support.js";
 import { defineSuggest } from "./suggest.js";
+import { qrSvg } from "./qr.js";
 
 const T = {
   da: { family: "Familien", home: "{names} er hjemme", homeOne: "{names} er hjemme", nobody: "Ingen er hjemme", write: "Skriv en besked …",
@@ -25,7 +26,7 @@ const T = {
     speakT: "Læs højt", speakH: "Husets beskeder siges på en højttaler, når nogen er hjemme – ikke om natten, undtagen alarmer.", speakPick: "– vælg højttaler –", speakTest: "Prøv", speakNoTts: "Ingen tale (TTS) er sat op i Home Assistant.",
     apps: "Chatten som app – uden login", appsH: "Til børn og andre uden en Home Assistant-konto. De åbner linket og vælger »Føj til hjemmeskærm«. Linket giver kun adgang til chatten.",
     appsLocal: "Kun hjemme: Home Assistant har ingen adresse udefra (Nabu Casa).", appName: "Navn", appWho: "Hvem er det?", appAlone: "Kun med navnet", appNew: "Lav link",
-    appCopy: "Kopiér", appCopied: "Kopieret", appShare: "Del", appDel: "Slet", appDelAsk: "Slette linket? Appen holder op med at virke for {n}.", appDevices: "{n} med beskeder", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
+    appCopy: "Kopiér", appCopied: "Kopieret", appQr: "QR-kode", appQrH: "Scan koden med telefonens kamera", appShare: "Del", appDel: "Slet", appDelAsk: "Slette linket? Appen holder op med at virke for {n}.", appDevices: "{n} med beskeder", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
     took: "✓ {name} took it", you: "you", settings: "Settings", agentT: "🤖 Who answers for the house", agentH: "The AI that answers when you write or speak to the house. Add more under Settings → Devices & services (e.g. Google AI, OpenAI, Ollama).", asAssist: "As in Assist", builtin: "Home Assistant", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
@@ -46,7 +47,7 @@ const T = {
     speakT: "Read aloud", speakH: "The house's messages are said on a speaker when somebody is home – not at night, except alarms.", speakPick: "– pick a speaker –", speakTest: "Try", speakNoTts: "No speech (TTS) is set up in Home Assistant.",
     apps: "The chat as an app – no login", appsH: "For children and others without a Home Assistant account. They open the link and choose “Add to Home Screen”. The link only opens the chat.",
     appsLocal: "Only at home: Home Assistant has no outside address (Nabu Casa).", appName: "Name", appWho: "Who is it?", appAlone: "Just the name", appNew: "Make link",
-    appCopy: "Copy", appCopied: "Copied", appShare: "Share", appDel: "Delete", appDelAsk: "Delete the link? The app stops working for {n}.", appDevices: "{n} with messages", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
+    appCopy: "Copy", appCopied: "Copied", appQr: "QR code", appQrH: "Scan the code with the phone's camera", appShare: "Share", appDel: "Delete", appDelAsk: "Delete the link? The app stops working for {n}.", appDevices: "{n} with messages", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
 };
 const COLORS = ["#ff8a65", "#4db6ac", "#9575cd", "#4fc3f7", "#f06292", "#aed581", "#ffb74d", "#7986cb"];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -666,6 +667,7 @@ class HusChatView extends HTMLElement {
     const rows = L.links.map((x) => `<div style="padding:12px 0;border-top:1px solid var(--line)"><div class="srow"><div><b>📱 ${esc(x.name)}</b>
         <small>${esc(persons.find((p) => p.id === x.person)?.name || "")}${x.devices ? `${x.person ? " · " : ""}${esc(t.appDevices.replace("{n}", x.devices))}` : ""}</small></div></div>
       <div class="chips" style="margin-top:8px"><button class="chip" data-a="appcopy" data-u="${esc(x.url)}">${t.appCopy}</button>
+        <button class="chip" data-a="appqr" data-u="${esc(x.url)}">${t.appQr}</button>
         ${navigator.share ? `<button class="chip" data-a="appshare" data-u="${esc(x.url)}" data-n="${esc(x.name)}">${t.appShare}</button>` : ""}
         <button class="chip" style="color:#ff3b5c" data-a="appdel" data-id="${esc(x.id)}" data-n="${esc(x.name)}">${t.appDel}</button></div></div>`).join("");
     const inp = "padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:14px";
@@ -767,6 +769,13 @@ class HusChatView extends HTMLElement {
       if (name || who) this.loadLinks({ create: { name: name || who.name, person } });
     }
     else if (a === "appcopy") { navigator.clipboard?.writeText(b.dataset.u).then(() => { b.textContent = this.t.appCopied; }).catch(() => prompt("", b.dataset.u)); }
+    else if (a === "appqr") {
+      const row = b.parentElement, open = row.nextElementSibling?.classList.contains("qrbox");
+      if (open) row.nextElementSibling.remove();
+      else row.insertAdjacentHTML("afterend", `<div class="qrbox" style="margin-top:10px;text-align:center"><div style="display:inline-block;width:220px;max-width:70vw;padding:10px;background:#fff;border-radius:14px;line-height:0">${qrSvg(b.dataset.u)}</div>
+        <small style="display:block;color:var(--muted);font-size:12.5px;margin-top:6px">${esc(this.t.appQrH)}</small>
+        <small style="display:block;color:var(--muted);font-size:11px;margin-top:2px;word-break:break-all;user-select:all">${esc(b.dataset.u)}</small></div>`);
+    }
     else if (a === "appshare") navigator.share({ title: b.dataset.n, url: b.dataset.u }).catch(() => {});
     else if (a === "appdel") { if (confirm(this.t.appDelAsk.replace("{n}", b.dataset.n))) this.loadLinks({ delete: b.dataset.id }); }
     else if (a === "clearall") {

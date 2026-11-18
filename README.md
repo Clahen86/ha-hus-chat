@@ -28,7 +28,7 @@
 
 ### The chat as an app – no login
 
-For children and others without a Home Assistant account: under ⚙️ → **The chat as an app** an admin makes a link with a name (and a person, if they have one). They open the link and choose *Add to Home Screen* (*Install* on Android) – it runs like an app, with notifications when somebody writes, also when it's closed. The link only opens the chat – nothing else in Home Assistant, and it can't control the house. Delete the link and the app stops at once. With Nabu Casa (or your own outside address) it works at home and away.
+For children and others without a Home Assistant account: under ⚙️ → **The chat as an app** an admin makes a link with a name (and a person, if they have one). Send it with **Copy** or **Share**, or press **QR code** and let them scan it with the phone's camera. They open the link and choose *Add to Home Screen* (*Install* on Android) – it runs like an app, with notifications when somebody writes, also when it's closed. The link only opens the chat – nothing else in Home Assistant, and it can't control the house. Delete the link and the app stops at once. With Nabu Casa (or your own outside address) it works at home and away.
 
 ### The house writes by itself
 
@@ -102,7 +102,7 @@ Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach
 
 ### Chatten som app – uden login
 
-Til børn og andre uden en Home Assistant-konto: under ⚙️ → **Chatten som app** laver en admin et link med et navn (og en person, hvis de har en). De åbner linket og vælger *Føj til hjemmeskærm* (*Installer* på Android) – så kører det som en app, med beskeder når nogen skriver, også når den er lukket. Linket åbner kun chatten – intet andet i Home Assistant, og det kan ikke styre huset. Slet linket, så holder appen op med det samme. Med Nabu Casa (eller din egen adresse udefra) virker det både hjemme og ude.
+Til børn og andre uden en Home Assistant-konto: under ⚙️ → **Chatten som app** laver en admin et link med et navn (og en person, hvis de har en). Send det med **Kopiér** eller **Del**, eller tryk **QR-kode** og lad dem scanne den med telefonens kamera. De åbner linket og vælger *Føj til hjemmeskærm* (*Installer* på Android) – så kører det som en app, med beskeder når nogen skriver, også når den er lukket. Linket åbner kun chatten – intet andet i Home Assistant, og det kan ikke styre huset. Slet linket, så holder appen op med det samme. Med Nabu Casa (eller din egen adresse udefra) virker det både hjemme og ude.
 
 ### Huset skriver selv
 
