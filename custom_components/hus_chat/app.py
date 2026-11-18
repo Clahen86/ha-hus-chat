@@ -89,7 +89,7 @@ class AppPageView(HomeAssistantView):
             return web.Response(text=SW, content_type="application/javascript", headers={"Service-Worker-Allowed": f"{base}/", "Cache-Control": "no-cache"})
         if file not in ("", "index.html"):
             return web.Response(status=HTTPStatus.NOT_FOUND)
-        js = f"{self.hass.data[f'{DOMAIN}_static']}/hus-chat.js"
+        js = self.hass.data.get(f"{DOMAIN}_js") or f"{self.hass.data[f'{DOMAIN}_static']}/hus-chat.js"  # with ?v=: a new version is fetched
         lang = (self.hass.config.language or "en").split("-")[0]
         html = PAGE_HTML.replace("{{title}}", _title(self.hass)).replace("{{base}}", base).replace("{{js}}", js) \
             .replace("{{lang}}", lang).replace("{{api}}", f"{API}/{token}")

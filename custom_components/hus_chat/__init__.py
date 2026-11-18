@@ -90,6 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
     js = Path(__file__).parent / "frontend" / "hus-chat.js"
     version = f"{version}-{int(await hass.async_add_executor_job(lambda: js.stat().st_mtime))}"
     url = f"{hass.data[f'{DOMAIN}_static']}/hus-chat.js?v={version}"
+    hass.data[f"{DOMAIN}_js"] = url
     frontend.add_extra_js_url(hass, url)  # the chat bubble on every page
     entry.async_on_unload(lambda: frontend.remove_extra_js_url(hass, url))
     await panel_custom.async_register_panel(

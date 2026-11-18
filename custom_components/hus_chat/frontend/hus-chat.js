@@ -224,6 +224,7 @@ class HusChatView extends HTMLElement {
       Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, agents: e.agents || null,
         reads: e.reads || {}, member: e.member !== false, pinned: e.pinned || null, speak: e.speak || null, ready: true });
       this.paintTop(); this.paintList(true); this.presence();
+      if (window.HUS_CHAT_APP && !this.rec && !this.listening) this.paintBar();  // the house button comes with "me" (allowed or not)
     } else if (e.type === "message") {
       this.msgs.push(e.message); this.paintList(this.nearBottom() || e.message.from === this.me?.id);
     } else if (e.type === "update") {
