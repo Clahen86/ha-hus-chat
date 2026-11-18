@@ -9,7 +9,7 @@ const T = {
     ask: "Spørg eller styr huset …", toHouse: "Til huset", house: "Huset", today: "I dag", yesterday: "I går", take: "✋ Jeg tager den",
     took: "✓ {name} tog den", you: "dig", settings: "Indstillinger", agentT: "🤖 Hvem svarer for huset", agentH: "Den AI, der svarer, når du skriver eller taler til huset. Tilføj flere under Indstillinger → Enheder og tjenester (fx Google AI, OpenAI, Ollama).", asAssist: "Som i Assist", builtin: "Home Assistant", quiet: "Stille timer", quietH: "Kun det, der haster (røg, vand …), kommer igennem.",
     from: "Fra", to: "Til", push: "Beskeder på telefonen", pushH: "Når appen er lukket, kan du svare direkte i beskeden.",
-    bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
+    bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ eller tryk to gange hurtigt på den, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
     rules: "Beskeder fra huset", rulesH: "Huset skriver selv, når noget sker. Vælg hvem der får hvad.", rulesKid: "Kun en admin kan ændre, hvem der får hvad.",
     topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm" },
@@ -18,12 +18,19 @@ const T = {
     myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
     picture: "Billede", voice: "Lydbesked", listen: "Lytter … sig det til huset", noStt: "Tale er ikke sat op i Assist – skriv i stedet.", heard: "Hørte ikke noget – prøv igen.", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset",
     reply: "Svar", edit: "Rediger", del: "Slet", delAsk: "Slette beskeden for alle?", edited: "redigeret", seen: "Set af {names}", replyTo: "Svarer {name}", editing: "Retter beskeden",
-    clear: "Ryd hele chatten", clearH: "Sletter alle beskeder, billeder og lydbeskeder for alle. Kan ikke fortrydes.", clearAsk: "Slette hele chatten for alle?", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
+    clear: "Ryd hele chatten", clearH: "Sletter alle beskeder, billeder og lydbeskeder for alle. Kan ikke fortrydes.", clearAsk: "Slette hele chatten for alle?",
+    tomorrow: "I morgen", more: "Mere", pollT: "Afstemning", pollQ: "Spørgsmål", pollOpt: "Svar {n}", pollAdd: "+ Svar", pollSend: "Send afstemning", votes: "{n} stemmer", vote1: "1 stemme",
+    onway: "På vej hjem", shopT: "Indkøbsliste", shopAdd: "Tilføj vare", shopNone: "Ingen indkøbsliste i Home Assistant. Tilføj integrationen »Indkøbsliste«.", shopEmpty: "Listen er tom 🎉",
+    onShop: "🛒 På indkøbslisten", remindAt: "⏰ Påmindelse {when}", pin: "Fastgør", unpin: "Fjern fastgørelse", search: "Søg i beskeder", searchNone: "Ingen beskeder passer",
+    speakT: "Læs højt", speakH: "Husets beskeder siges på en højttaler, når nogen er hjemme – ikke om natten, undtagen alarmer.", speakPick: "– vælg højttaler –", speakTest: "Prøv", speakNoTts: "Ingen tale (TTS) er sat op i Home Assistant.",
+    apps: "Chatten som app – uden login", appsH: "Til børn og andre uden en Home Assistant-konto. De åbner linket og vælger »Føj til hjemmeskærm«. Linket giver kun adgang til chatten.",
+    appsLocal: "Kun hjemme: Home Assistant har ingen adresse udefra (Nabu Casa).", appName: "Navn", appWho: "Hvem er det?", appAlone: "Kun med navnet", appNew: "Lav link",
+    appCopy: "Kopiér", appCopied: "Kopieret", appShare: "Del", appDel: "Slet", appDelAsk: "Slette linket? Appen holder op med at virke for {n}.", appDevices: "{n} med beskeder", notMember: "Du er ikke med i familiens chat endnu. Bed en admin om at gøre dig til en person i Home Assistant, eller installer appen på din telefon." },
   en: { family: "Family", home: "{names} are home", homeOne: "{names} is home", nobody: "Nobody is home", write: "Write a message …",
     ask: "Ask or control the house …", toHouse: "To the house", house: "The house", today: "Today", yesterday: "Yesterday", take: "✋ I'll take it",
     took: "✓ {name} took it", you: "you", settings: "Settings", agentT: "🤖 Who answers for the house", agentH: "The AI that answers when you write or speak to the house. Add more under Settings → Devices & services (e.g. Google AI, OpenAI, Ollama).", asAssist: "As in Assist", builtin: "Home Assistant", quiet: "Quiet hours", quietH: "Only what's urgent (smoke, water …) comes through.",
     from: "From", to: "To", push: "Messages on the phone", pushH: "When the app is closed you can answer right in the notification.",
-    bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
+    bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ or tap it twice quickly and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
     rules: "Messages from the house", rulesH: "The house writes by itself when something happens. Choose who gets what.", rulesKid: "Only an admin can change who gets what.",
     topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm" },
@@ -32,7 +39,14 @@ const T = {
     myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
     picture: "Picture", voice: "Voice message", listen: "Listening … tell the house", noStt: "Speech isn't set up in Assist – type instead.", heard: "Didn't catch that – try again.", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house",
     reply: "Reply", edit: "Edit", del: "Delete", delAsk: "Delete the message for everyone?", edited: "edited", seen: "Seen by {names}", replyTo: "Replying to {name}", editing: "Editing the message",
-    clear: "Clear the whole chat", clearH: "Deletes every message, picture and voice message for everyone. Can't be undone.", clearAsk: "Delete the whole chat for everyone?", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
+    clear: "Clear the whole chat", clearH: "Deletes every message, picture and voice message for everyone. Can't be undone.", clearAsk: "Delete the whole chat for everyone?",
+    tomorrow: "Tomorrow", more: "More", pollT: "Poll", pollQ: "Question", pollOpt: "Answer {n}", pollAdd: "+ Answer", pollSend: "Send poll", votes: "{n} votes", vote1: "1 vote",
+    onway: "On my way home", shopT: "Shopping list", shopAdd: "Add item", shopNone: "No shopping list in Home Assistant. Add the “Shopping list” integration.", shopEmpty: "The list is empty 🎉",
+    onShop: "🛒 On the shopping list", remindAt: "⏰ Reminder {when}", pin: "Pin", unpin: "Unpin", search: "Search messages", searchNone: "No messages match",
+    speakT: "Read aloud", speakH: "The house's messages are said on a speaker when somebody is home – not at night, except alarms.", speakPick: "– pick a speaker –", speakTest: "Try", speakNoTts: "No speech (TTS) is set up in Home Assistant.",
+    apps: "The chat as an app – no login", appsH: "For children and others without a Home Assistant account. They open the link and choose “Add to Home Screen”. The link only opens the chat.",
+    appsLocal: "Only at home: Home Assistant has no outside address (Nabu Casa).", appName: "Name", appWho: "Who is it?", appAlone: "Just the name", appNew: "Make link",
+    appCopy: "Copy", appCopied: "Copied", appShare: "Share", appDel: "Delete", appDelAsk: "Delete the link? The app stops working for {n}.", appDevices: "{n} with messages", notMember: "You're not in the family chat yet. Ask an admin to make you a person in Home Assistant, or install the app on your phone." },
 };
 const COLORS = ["#ff8a65", "#4db6ac", "#9575cd", "#4fc3f7", "#f06292", "#aed581", "#ffb74d", "#7986cb"];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -69,6 +83,16 @@ const STYLE = `
 :host([dark]){--bg:#0f1020;--panel:#171a2e;--bubble:#262a45;--text:#f3f4fb;--muted:#9aa0c8;--line:rgba(255,255,255,.07);--card1:rgba(255,107,138,.18);--card2:rgba(124,92,255,.2);--cardline:rgba(160,140,255,.32);--ok:#8ff0b8}
 *{box-sizing:border-box}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+.pinbar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;flex:none}
+.pinbar span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pinbar b{color:#7c5cff;margin-right:4px}
+.srch{flex:1;min-width:0;padding:9px 12px;border-radius:20px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:15px;outline:none}
+.b.poll{min-width:220px;max-width:100%;white-space:normal}.poll .q{font-weight:650;margin-bottom:8px}.poll button{position:relative;display:block;width:100%;text-align:left;margin-top:6px;padding:9px 12px;border-radius:12px;background:var(--line);overflow:hidden;font:inherit;font-size:14px}
+.poll button i{position:absolute;inset:0 auto 0 0;background:linear-gradient(135deg,#ff6b8a55,#7c5cff55);border-radius:12px}.poll button span{position:relative;display:flex;justify-content:space-between;gap:8px}.poll button.mine{box-shadow:inset 0 0 0 2px #7c5cff}
+.poll small{display:block;margin-top:6px;color:var(--muted);font-size:12px}
+.tag{display:inline-block;margin-top:5px;font-size:12px;padding:3px 9px;border-radius:99px;background:var(--line);color:var(--muted)}
+.frm input{width:100%;box-sizing:border-box;padding:11px 12px;margin-top:8px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:15px}
+.shopi{display:flex;align-items:center;gap:12px;padding:12px 2px;border-top:1px solid var(--line);font-size:15px}.shopi button{width:24px;height:24px;border-radius:50%;border:2px solid var(--muted);flex:none}
+.hit{background:#ffd54a66;border-radius:3px}
 .top{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
 .logo{width:40px;height:40px;border-radius:12px;overflow:hidden;flex:none;box-shadow:0 4px 12px rgba(124,92,255,.35)}.logo svg{width:100%;height:100%;display:block}
 .tt{min-width:0;flex:1}.tt b{display:block;font-size:17px}.tt span{display:block;font-size:12.5px;color:var(--ok);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -151,6 +175,8 @@ const ICON = {
   back: `<svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg>`,
   send: `<svg viewBox="0 0 24 24"><path d="M2 21 23 12 2 3v7l15 2-15 2z"/></svg>`,
   mic: `<svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3m5.3-3a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.9V21h2v-3.1a7 7 0 0 0 6-6.9z"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>`,
+  search: `<svg viewBox="0 0 24 24"><path d="M9.5 3a6.5 6.5 0 0 1 5.2 10.4l5.4 5.4-1.4 1.4-5.4-5.4A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9"/></svg>`,
   cam: `<svg viewBox="0 0 24 24"><path d="M4 4h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2m8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10m0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6"/></svg>`,
 };
 
@@ -195,7 +221,7 @@ class HusChatView extends HTMLElement {
   onEvent(e) {
     if (e.type === "init") {
       Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, agents: e.agents || null,
-        reads: e.reads || {}, member: e.member !== false, ready: true });
+        reads: e.reads || {}, member: e.member !== false, pinned: e.pinned || null, speak: e.speak || null, ready: true });
       this.paintTop(); this.paintList(true); this.presence();
     } else if (e.type === "message") {
       this.msgs.push(e.message); this.paintList(this.nearBottom() || e.message.from === this.me?.id);
@@ -207,6 +233,8 @@ class HusChatView extends HTMLElement {
       this.msgs = this.msgs.filter((m) => m.id !== e.message.id); this.paintList(false);
     } else if (e.type === "clear") {
       this.msgs = []; this.paintList(true);
+    } else if (e.type === "pin") {
+      this.pinned = e.message.id; this.paintPin(); return;
     } else if (e.type === "read") {
       this.reads[e.message.who] = e.message.t; this.paintSeen(); return;
     }
@@ -240,17 +268,35 @@ class HusChatView extends HTMLElement {
     const h = this.hass, people = this.people.map((p) => ({ ...p, home: h?.states?.[p.id] ? h.states[p.id].state === "home" : p.home }));
     const home = people.filter((p) => p.home).map((p) => p.name.split(" ")[0]);
     const sub = home.length ? (home.length === 1 ? t.homeOne : t.home).replace("{names}", home.length > 2 ? `${home.slice(0, -1).join(", ")} & ${home.at(-1)}` : home.join(home.length === 2 ? " & " : "")) : t.nobody;
+    if (this.searching && !this.sheet) {  // search: the top becomes a search field
+      top.innerHTML = `<button class="ib" data-a="unsearch" aria-label="${t.back}">${ICON.back}</button><input class="srch" type="search" placeholder="${esc(t.search)}" value="${esc(this.q || "")}">`;
+      const i = top.querySelector("input");
+      i.addEventListener("input", () => { this.q = i.value; this.paintList(true); });
+      setTimeout(() => i.focus(), 30);
+      this.paintPin();
+      return;
+    }
     top.innerHTML = `${this.sheet ? `<button class="ib" data-a="unsheet" aria-label="${t.back}">${ICON.back}</button>` : ""}
-      <div class="logo">${LOGO("t")}</div><div class="tt"><b>${this.sheet ? (this.sheet === "help" ? t.help : t.settings) : t.family}</b>${this.sheet ? "" : `<span class="${home.length ? "" : "away"}">● ${esc(sub)}</span>`}</div>
+      <div class="logo">${LOGO("t")}</div><div class="tt"><b>${this.sheet ? ({ help: t.help, poll: t.pollT, shop: t.shopT }[this.sheet] || t.settings) : t.family}</b>${this.sheet ? "" : `<span class="${home.length ? "" : "away"}">● ${esc(sub)}</span>`}</div>
       ${this.sheet ? "" : `<div class="faces">${people.slice(0, 5).map((p) => this.avatar(p.id, p.name, false, p.home ? "" : "out")).join("")}</div>
-      <button class="ib" data-a="settings" aria-label="${t.settings}">${ICON.gear}</button>`}
+      <button class="ib" data-a="search" aria-label="${t.search}">${ICON.search}</button><button class="ib" data-a="settings" aria-label="${t.settings}">${ICON.gear}</button>`}
       ${this.closable ? `<button class="ib" data-a="close" aria-label="${t.close}">${ICON.close}</button>` : ""}`;
+    this.paintPin();
+  }
+  paintPin() {  // the pinned message under the top - tap it to find it
+    this.$(".pinbar")?.remove();
+    const m = !this.sheet && this.pinned && this.msgs.find((x) => x.id === this.pinned);
+    if (!m) return;
+    const el = document.createElement("div"); el.className = "pinbar"; el.dataset.a = "gopin";
+    el.innerHTML = `<span><b>📌</b>${esc(m.name || "")}: ${esc(m.text || m.title || "")}</span>`;
+    this.$(".top").after(el);
   }
   day(ts) {
     const d = new Date(ts * 1000), now = new Date(), t = this.t;
     const same = (a, b) => a.toDateString() === b.toDateString();
     if (same(d, now)) return t.today;
     if (same(d, new Date(now - 864e5))) return t.yesterday;
+    if (same(d, new Date(+now + 864e5))) return t.tomorrow;
     return d.toLocaleDateString(this.hass?.language || undefined, { weekday: "long", day: "numeric", month: "long" });
   }
   hm(ts) { return new Date(ts * 1000).toLocaleTimeString(this.hass?.language || undefined, { hour: "2-digit", minute: "2-digit" }); }
@@ -270,8 +316,15 @@ class HusChatView extends HTMLElement {
     } else {
       if (m.image) body += `<img class="pic" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="${t.picture}">`;
       if (m.audio) body += `<div class="audio" data-audio="${esc(m.audio)}"><button class="play" data-a="play" data-src="${esc(m.audio)}" aria-label="${t.voice}">▶</button><div class="wave">${this.wave(m.id)}</div><span class="dur">0:00</span></div>`;
-      if (m.text) body += `<div class="b${house ? " house" : ""}">${m.reply ? `<div class="quote">${esc(m.reply.name)}: ${esc(m.reply.text)}</div>` : ""}${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.edited ? `<span class="ed">(${t.edited})</span>` : ""}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
+      if (m.poll) {
+        const total = m.poll.reduce((a, o) => a + o.votes.length, 0);
+        body += `<div class="b poll"><div class="q">📊 ${esc(m.text)}</div>${m.poll.map((o, i) => `<button class="${o.votes.includes(this.me?.id) ? "mine" : ""}" data-a="vote" data-id="${esc(m.id)}" data-o="${i}">
+          <i style="width:${total ? Math.round(o.votes.length / total * 100) : 0}%"></i><span><b style="font-weight:600">${esc(o.t)}</b><em style="font-style:normal">${o.votes.length || ""}</em></span></button>`).join("")}
+          <small>${total === 1 ? t.vote1 : t.votes.replace("{n}", total)}${total ? " · " + esc(m.poll.flatMap((o) => o.votes).map((v) => this.people.find((p) => p.id === v)?.name.split(" ")[0] || "").filter(Boolean).join(", ")) : ""}</small></div>`;
+      } else if (m.text) body += `<div class="b${house ? " house" : ""}">${m.reply ? `<div class="quote">${esc(m.reply.name)}: ${esc(m.reply.text)}</div>` : ""}${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.edited ? `<span class="ed">(${t.edited})</span>` : ""}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
     }
+    if (m.shop) body += `<span class="tag">${t.onShop}: ${esc(m.shop.join(", "))}</span>`;
+    if (m.remind) body += `<span class="tag">${esc(t.remindAt.replace("{when}", `${this.day(m.remind).toLowerCase()} ${this.hm(m.remind)}`))}</span>`;
     const rx = Object.entries(m.reactions || {});
     if (rx.length) body += `<div class="reacts">${rx.map(([e, who]) => `<button class="${who.includes(this.me?.id) ? "mine" : ""}" data-a="react" data-id="${esc(m.id)}" data-e="${esc(e)}">${e} ${who.length}</button>`).join("")}</div>`;
     const fresh = this._seen && !this._seen.has(m.id);
@@ -286,10 +339,13 @@ class HusChatView extends HTMLElement {
       return;
     }
     let html = "", lastDay = "";
-    this.msgs.forEach((m, i) => {
+    const q = this.searching && (this.q || "").trim().toLowerCase();
+    const shown = q ? this.msgs.filter((m) => `${m.text || ""} ${m.title || ""} ${m.name || ""}`.toLowerCase().includes(q)) : this.msgs;
+    if (q && !shown.length) { list.innerHTML = `<div class="empty">${t.searchNone}</div>`; return; }
+    shown.forEach((m, i) => {
       const d = this.day(m.t);
       if (d !== lastDay) { html += `<div class="day">${esc(d)}</div>`; lastDay = d; }
-      html += this.item(m, this.msgs[i - 1], this.msgs[i + 1]);
+      html += this.item(m, shown[i - 1], shown[i + 1]);
     });
     const keep = list.scrollTop;
     list.innerHTML = html + `<div class="seen"></div>`;
@@ -321,7 +377,8 @@ class HusChatView extends HTMLElement {
     const el = document.createElement("div"); el.className = "acts";
     el.innerHTML = `<div class="box"><div class="emo">${["👍", "❤️", "😂", "😮", "😢", "🙏"].map((e) => `<button data-a="react" data-id="${esc(id)}" data-e="${e}">${e}</button>`).join("")}</div>
       ${m.kind === "chat" || m.kind === "house" ? `<button class="do" data-a="reply" data-id="${esc(id)}">↩︎ ${t.reply}</button>` : ""}
-      ${mine && m.kind === "chat" && m.text ? `<button class="do" data-a="edit" data-id="${esc(id)}">✎ ${t.edit}</button>` : ""}
+      <button class="do" data-a="pin" data-id="${this.pinned === id ? "" : esc(id)}">📌 ${this.pinned === id ? t.unpin : t.pin}</button>
+      ${mine && m.kind === "chat" && m.text && !m.poll ? `<button class="do" data-a="edit" data-id="${esc(id)}">✎ ${t.edit}</button>` : ""}
       ${mine || this.me?.admin ? `<button class="do bad" data-a="del" data-id="${esc(id)}">🗑 ${t.del}</button>` : ""}</div>`;
     el.addEventListener("click", (e) => { if (e.target === el) el.remove(); });
     this.shadowRoot.appendChild(el);
@@ -341,9 +398,9 @@ class HusChatView extends HTMLElement {
         <button class="round go" data-a="recsend" aria-label="${t.voice}">${ICON.send}</button>`;
       return;
     }
-    bar.innerHTML = `<label class="round cam" aria-label="${t.picture}">${ICON.cam}<input type="file" accept="image/*" hidden data-file></label>
+    bar.innerHTML = `<button class="round cam" data-a="plus" aria-label="${t.more}">${ICON.plus}</button>
       <div class="field"><textarea rows="1" placeholder="${esc(this.toHouse ? t.ask : t.write)}" aria-label="${esc(t.write)}">${esc(this.text)}</textarea>
-        <button class="hb ${this.toHouse ? "on" : ""}" data-a="house" title="${esc(t.toHouse)}"><span class="mini">${LOGO("h")}</span>${this.toHouse ? t.toHouse : ""}</button></div>
+        ${window.HUS_CHAT_APP ? "" : `<button class="hb ${this.toHouse ? "on" : ""}" data-a="house" title="${esc(t.toHouse)}"><span class="mini">${LOGO("h")}</span>${this.toHouse ? t.toHouse : ""}</button>`}</div>
       ${this.text.trim() ? `<button class="round go" data-a="send" aria-label="Send">${ICON.send}</button>` : `<button class="round go" data-a="rec" aria-label="${t.voice}">${ICON.mic}</button>`}`;
     const ta = bar.querySelector("textarea");
     const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(120, ta.scrollHeight) + "px"; };
@@ -352,7 +409,6 @@ class HusChatView extends HTMLElement {
       if (had !== !!this.text.trim()) { const pos = ta.selectionStart; this.paintBar(); const n = this.$("textarea"); n.focus(); n.setSelectionRange(pos, pos); }
     });
     ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) { e.preventDefault(); this.send(); } });
-    bar.querySelector("[data-file]").addEventListener("change", (e) => this.sendPicture(e.target.files[0]));
     grow();
   }
   error(text) {
@@ -511,7 +567,24 @@ class HusChatView extends HTMLElement {
     const t = this.t, p = this.prefs, el = document.createElement("div");
     el.className = "sheet";
     el.style.top = this.$(".top").offsetHeight + "px";
-    if (this.sheet === "help") {
+    if (this.sheet === "poll") {
+      const n = this.pollN || 2;
+      el.innerHTML = `<div class="sbody frm"><div class="set"><b>${t.pollQ}</b><input data-pq maxlength="200" placeholder="${esc(t.pollQ)}">
+        ${Array.from({ length: n }, (_, i) => `<input data-po maxlength="80" placeholder="${esc(t.pollOpt.replace("{n}", i + 1))}">`).join("")}
+        ${n < 6 ? `<button class="chip" style="margin-top:10px" data-a="polladd">${t.pollAdd}</button>` : ""}</div>
+        <button class="chip go" style="width:100%;padding:13px;font-size:15px" data-a="pollsend">${t.pollSend}</button></div>`;
+      const keep = this._pollVals || {};
+      el.querySelector("[data-pq]").value = keep.q || "";
+      el.querySelectorAll("[data-po]").forEach((x, i) => { x.value = (keep.o || [])[i] || ""; });
+      setTimeout(() => el.querySelector("[data-pq]")?.focus(), 50);
+    } else if (this.sheet === "shop") {
+      const S = this.shop;
+      el.innerHTML = `<div class="sbody frm"><div class="set">${!S ? "…" : !S.entity ? `<small style="color:var(--muted)">${t.shopNone}</small>`
+        : `<div style="display:flex;gap:8px"><input data-shopadd maxlength="60" placeholder="${esc(t.shopAdd)}" style="margin-top:0"><button class="chip go" data-a="shopadd">+</button></div>
+        <div style="margin-top:10px">${S.items.length ? S.items.map((i) => `<div class="shopi"><button data-a="shopdone" data-u="${esc(i.uid)}" aria-label="✓"></button><span>${esc(i.summary)}</span></div>`).join("")
+          : `<div class="shopi" style="color:var(--muted)">${t.shopEmpty}</div>`}</div>`}</div></div>`;
+      el.querySelector("[data-shopadd]")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); this.shopDo({ add: e.target.value }); } });
+    } else if (this.sheet === "help") {
       el.innerHTML = `<div class="sbody" style="padding:0"></div>`;
       this._sup = this._sup || document.createElement(defineSupport("hus_chat"));
       this._sup.hass = this.hass;
@@ -525,15 +598,18 @@ class HusChatView extends HTMLElement {
         <div class="set"><div class="srow"><div><b>${t.quiet}</b><small>${t.quietH}</small></div>${sw("quiet")}</div>
           ${p.quiet ? `<div class="times"><label>${t.from}<input type="time" value="${esc(p.quiet_from)}" data-time="quiet_from"></label><label>${t.to}<input type="time" value="${esc(p.quiet_to)}" data-time="quiet_to"></label></div>` : ""}</div>
         <div class="set"><div class="srow"><div><b>${t.push}</b><small>${t.pushH}</small></div>${sw("push")}</div></div>
-        <div class="set"><div class="srow"><div><b>${t.bubble}</b><small>${t.bubbleH}</small></div>${sw("bubble")}</div></div>
+        ${window.HUS_CHAT_APP ? "" : `<div class="set"><div class="srow"><div><b>${t.bubble}</b><small>${t.bubbleH}</small></div>${sw("bubble")}</div></div>`}
         ${(this.phones || []).length ? `<div class="set"><b>${t.myPhones}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 6px">${t.myPhonesH}</small>
           ${this.phones.map((x) => `<div class="srow" style="margin-top:10px"><div>📱 ${esc(x.name)}${x.stale ? `<small>${t.stale}</small>` : ""}</div>
             <button class="sw ${x.on ? "on" : ""}" data-a="phone" data-svc="${esc(x.svc)}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}"></button></div>`).join("")}</div>` : ""}
+        ${this.me?.admin ? this.speakCard() : ""}
+        ${this.me?.admin ? this.appsCard() : ""}
         ${this.me?.admin ? `<button class="link" data-a="help">${t.help}</button>
           <div class="set" style="margin-top:12px"><div class="srow"><div><b>${t.clear}</b><small>${t.clearH}</small></div>
             <button class="chip" style="color:#ff3b5c" data-a="clearall">🗑</button></div></div>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
       el.querySelector("[data-agent]")?.addEventListener("change", (e) => this.setAgent(e.target.value));
+      el.querySelector("[data-speaker]")?.addEventListener("change", (e) => this.setSpeak({ player: e.target.value || null }));
       if (this.me?.admin) this.addSuggest(el.firstChild, "card");  // only admins can install
       if (this.me?.admin) {  // the update card on top of the settings, when it's time
         this._upd = this._upd || document.createElement(defineUpdate("hus_chat"));
@@ -555,6 +631,55 @@ class HusChatView extends HTMLElement {
     if (!this[k]) { this[k] = document.createElement(defineSuggest("hus_chat")); this[k].setAttribute("mode", mode); }
     this[k].hass = this.hass;
     return this[k];
+  }
+  speakCard() {  // the house's messages read aloud on a speaker
+    const t = this.t, S = this.speak;
+    if (!S) return "";
+    const inp = "width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:14px;margin-top:10px";
+    return `<div class="set"><div class="srow"><div><b>${t.speakT}</b><small>${S.tts ? t.speakH : t.speakNoTts}</small></div>
+      ${S.tts ? `<button class="sw ${S.on ? "on" : ""}" data-a="speakon" role="switch" aria-checked="${!!S.on}"></button>` : ""}</div>
+      ${S.tts && S.on ? `<select data-speaker style="${inp}"><option value="">${esc(t.speakPick)}</option>${S.players.map((p) => `<option value="${esc(p.id)}" ${p.id === S.player ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+        ${S.player ? `<button class="chip" style="margin-top:10px" data-a="speaktest">🔊 ${t.speakTest}</button>` : ""}` : ""}</div>`;
+  }
+  async setSpeak(change) {
+    try { this.speak = await this.hass.connection.sendMessagePromise({ type: "hus_chat/speak", ...change }); } catch (e) { this.error(this.t.failed); }
+    if (this.sheet === "settings") this.paintSheet();
+  }
+  async shopDo(change) {
+    try { this.shop = await this.hass.connection.sendMessagePromise({ type: "hus_chat/extra", what: "shop", ...(change || {}) }); }
+    catch (e) { this.error(this.t.failed); this.shop = this.shop || { entity: null, items: [] }; }
+    if (this.sheet === "shop") this.paintSheet();
+  }
+  extra(what, data) { return this.hass.connection.sendMessagePromise({ type: "hus_chat/extra", what, ...(data || {}) }); }
+  plusMenu() {  // the + in the message field: picture, poll, on my way home, shopping list
+    const t = this.t, el = document.createElement("div"); el.className = "acts";
+    el.innerHTML = `<div class="box"><label class="do" style="cursor:pointer">📷 ${t.picture}<input type="file" accept="image/*" hidden data-file></label>
+      <button class="do" data-a="poll">📊 ${t.pollT}</button><button class="do" data-a="onway">🚗 ${t.onway}</button><button class="do" data-a="shop">🛒 ${t.shopT}</button></div>`;
+    el.addEventListener("click", (e) => { if (e.target === el) el.remove(); });
+    el.querySelector("[data-file]").addEventListener("change", (e) => { el.remove(); this.sendPicture(e.target.files[0]); });
+    this.shadowRoot.appendChild(el);
+  }
+  appsCard() {  // links that open the chat as an app without a login - made by an admin
+    const t = this.t, L = this.links;
+    if (!L) { this.loadLinks(); return `<div class="set"><b>${t.apps}</b></div>`; }
+    const persons = this.people.filter((p) => p.id.startsWith("person."));
+    const rows = L.links.map((x) => `<div style="padding:12px 0;border-top:1px solid var(--line)"><div class="srow"><div><b>📱 ${esc(x.name)}</b>
+        <small>${esc(persons.find((p) => p.id === x.person)?.name || "")}${x.devices ? `${x.person ? " · " : ""}${esc(t.appDevices.replace("{n}", x.devices))}` : ""}</small></div></div>
+      <div class="chips" style="margin-top:8px"><button class="chip" data-a="appcopy" data-u="${esc(x.url)}">${t.appCopy}</button>
+        ${navigator.share ? `<button class="chip" data-a="appshare" data-u="${esc(x.url)}" data-n="${esc(x.name)}">${t.appShare}</button>` : ""}
+        <button class="chip" style="color:#ff3b5c" data-a="appdel" data-id="${esc(x.id)}" data-n="${esc(x.name)}">${t.appDel}</button></div></div>`).join("");
+    const inp = "padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:14px";
+    return `<div class="set"><b>${t.apps}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 6px">${t.appsH}</small>
+      ${L.outside ? "" : `<small style="display:block;color:#e8890c;font-size:12.5px;margin-bottom:6px">${t.appsLocal}</small>`}${rows}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <input data-appname placeholder="${esc(t.appName)}" maxlength="40" style="${inp};flex:1;min-width:120px">
+        <select data-appwho style="${inp};flex:1;min-width:120px"><option value="">${esc(t.appAlone)}</option>${persons.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
+        <button class="chip go" data-a="appnew">${t.appNew}</button></div></div>`;
+  }
+  async loadLinks(change) {
+    try { this.links = await this.hass.connection.sendMessagePromise({ type: "hus_chat/links", ...(change || {}) }); }
+    catch (e) { if (change) this.error(this.t.failed); this.links = this.links || { links: [], outside: true }; }
+    if (this.sheet === "settings") this.paintSheet();
   }
   agentCard() {  // which AI answers "to the house" - any conversation agent set up in Home Assistant
     const t = this.t, A = this.agents;
@@ -609,6 +734,41 @@ class HusChatView extends HTMLElement {
       if (confirm(this.t.delAsk)) this.hass.connection.sendMessagePromise({ type: "hus_chat/delete", message: b.dataset.id }).catch(() => this.error(this.t.failed));
     }
     else if (a === "unstrip") { if (this.editing) this.text = ""; this.replyTo = null; this.editing = null; this.paintStrip(); this.paintBar(); }
+    else if (a === "plus") this.plusMenu();
+    else if (a === "poll") { this.shadowRoot.querySelector(".acts")?.remove(); this.pollN = 2; this._pollVals = null; this.sheet = "poll"; this.paintSheet(); }
+    else if (a === "polladd") {
+      this._pollVals = { q: this.$("[data-pq]").value, o: [...this.shadowRoot.querySelectorAll("[data-po]")].map((x) => x.value) };
+      this.pollN = Math.min(6, (this.pollN || 2) + 1); this.paintSheet();
+    }
+    else if (a === "pollsend") {
+      const question = this.$("[data-pq]").value.trim(), options = [...this.shadowRoot.querySelectorAll("[data-po]")].map((x) => x.value.trim()).filter(Boolean);
+      if (!question || options.length < 2) return;
+      this.extra("poll", { question, options }).then(() => { this.sheet = null; this.paintSheet(); }).catch(() => this.error(this.t.failed));
+    }
+    else if (a === "vote") this.extra("vote", { message: b.dataset.id, option: Number(b.dataset.o) }).catch(() => this.error(this.t.failed));
+    else if (a === "onway") { this.shadowRoot.querySelector(".acts")?.remove(); this.extra("onway").catch(() => this.error(this.t.failed)); }
+    else if (a === "shop") { this.shadowRoot.querySelector(".acts")?.remove(); this.sheet = "shop"; this.paintSheet(); this.shopDo(); }
+    else if (a === "shopadd") { const i = this.$("[data-shopadd]"); if (i?.value.trim()) this.shopDo({ add: i.value }); }
+    else if (a === "shopdone") { b.style.background = "#7c5cff"; this.shopDo({ done: b.dataset.u }); }
+    else if (a === "pin") { this.shadowRoot.querySelector(".acts")?.remove(); this.extra("pin", { message: b.dataset.id || null }).catch(() => this.error(this.t.failed)); }
+    else if (a === "gopin") {
+      if (this.searching) { this.searching = false; this.q = ""; this.paintTop(); this.paintList(false); }
+      const row = this.shadowRoot.querySelector(`[data-a="msg"][data-id="${CSS.escape(this.pinned)}"]`);
+      row?.scrollIntoView({ block: "center", behavior: "smooth" });
+      row?.animate([{ background: "#7c5cff33" }, { background: "transparent" }], { duration: 1600 });
+    }
+    else if (a === "search") { this.searching = true; this.q = ""; this.paintTop(); }
+    else if (a === "unsearch") { this.searching = false; this.q = ""; this.paintTop(); this.paintList(true); }
+    else if (a === "speakon") this.setSpeak({ on: !this.speak.on });
+    else if (a === "speaktest") this.setSpeak({ test: true });
+    else if (a === "appnew") {
+      const name = this.$("[data-appname]")?.value.trim(), person = this.$("[data-appwho]")?.value || null;
+      const who = person && this.people.find((p) => p.id === person);
+      if (name || who) this.loadLinks({ create: { name: name || who.name, person } });
+    }
+    else if (a === "appcopy") { navigator.clipboard?.writeText(b.dataset.u).then(() => { b.textContent = this.t.appCopied; }).catch(() => prompt("", b.dataset.u)); }
+    else if (a === "appshare") navigator.share({ title: b.dataset.n, url: b.dataset.u }).catch(() => {});
+    else if (a === "appdel") { if (confirm(this.t.appDelAsk.replace("{n}", b.dataset.n))) this.loadLinks({ delete: b.dataset.id }); }
     else if (a === "clearall") {
       if (confirm(this.t.clearAsk)) this.hass.connection.sendMessagePromise({ type: "hus_chat/clear" }).catch(() => this.error(this.t.failed));
     }
@@ -783,7 +943,11 @@ class Bubble {
     this.head.addEventListener("pointerup", (e) => {
       if (!down) return;
       down = false; this.head.classList.remove("drag"); this.x.classList.remove("show", "hot");
-      if (!moved) { this.toggle(); return; }
+      if (!moved) {  // one tap opens, two quick taps tuck it away (as dropping it on ✕)
+        if (this.tapT) { clearTimeout(this.tapT); this.tapT = null; this.close(); return; }
+        this.tapT = setTimeout(() => { this.tapT = null; this.toggle(); }, 260);
+        return;
+      }
       if (this.overX(e)) { this.close(); return; }
       this.pos = { side: e.clientX < innerWidth / 2 ? "left" : "right", y: this.head.offsetTop };
       try { localStorage.setItem("hus-chat-pos", JSON.stringify(this.pos)); } catch (x) { /* private */ }
@@ -836,7 +1000,7 @@ class Bubble {
 }
 
 // Started once per page, not on the panel itself (it has the chat), and not inside other frames.
-if (!window.__husChatBubble && window.top === window) {
+if (!window.__husChatBubble && window.top === window && !window.HUS_CHAT_APP) {  // not in the app from a link
   window.__husChatBubble = new Bubble();
   window.__husChatBubble.start();
 }

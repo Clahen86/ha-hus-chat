@@ -6,11 +6,11 @@
 
 ![House Chat](docs/showcase.png)
 
-<p align="center"><img src="docs/chat_light.png" width="250" alt="The chat"> <img src="docs/chat_dark.png" width="250" alt="Dark theme"> <img src="docs/settings.png" width="250" alt="Who gets what"> <img src="docs/actions.png" width="250" alt="React, reply, edit, delete"></p>
+<p align="center"><img src="docs/chat_light.png" width="250" alt="The chat"> <img src="docs/chat_dark.png" width="250" alt="Dark theme"> <img src="docs/extras.png" width="250" alt="Picture, poll, on my way home, shopping list"> <img src="docs/app.png" width="250" alt="The app from a link"> <img src="docs/settings.png" width="250" alt="Read aloud and app links"> <img src="docs/actions.png" width="250" alt="React, reply, pin, edit, delete"></p>
 
 ## English
 
-- **A chat bubble on every page of Home Assistant**, like Messenger. A red number for new messages, and a little preview when someone writes. Drag it onto ✕ and it tucks away as a small tab at the edge – tap the tab, or it comes back by itself when somebody writes.
+- **A chat bubble on every page of Home Assistant**, like Messenger. A red number for new messages, and a little preview when someone writes. Drag it onto ✕ (or tap it twice quickly) and it tucks away as a small tab at the edge – tap the tab, or it comes back by itself when somebody writes.
 - **Write with each other**: text, pictures and voice messages (use the keyboard's microphone to dictate). Everyone sees who wrote what.
 - **Tap a message** to react (👍 ❤️ 😂 😮 😢 🙏), reply with a quote, edit your own (marked *edited*) or delete it. Under your last message you see who has **seen** it.
 - **Private where it should be**: a message to some of you is only seen by them, and a question to the house with its answer only by whoever asked. An account without a person or the app (a wall tablet) sees no messages. An admin can delete any message, or clear the whole chat under ⚙️.
@@ -19,6 +19,16 @@
 - **When the app is closed** the message comes as a notification you can answer right in, or press *I'll take it*. Read it anywhere and it's gone from your phones too – and with the chat open you get no notification (urgent alarms still come).
 - **Quiet hours** per person – only urgent messages come through.
 - **Nothing to set up**: everyone with the Home Assistant app on their phone is in it – also without a person. Who is home comes from the persons.
+- **🛒 Shopping list**: write "buy milk, bread and eggs" and they go on Home Assistant's shopping list. ＋ → *Shopping list* shows it – tick things off or add more.
+- **⏰ Reminders**: "remind me about the dentist tomorrow at 8", "remind us about football on Friday at 5pm" or "… in 20 minutes" – the house writes at that time. Delete the message and the reminder goes too.
+- **📊 Polls**: ＋ → *Poll* – a question with 2–6 answers. Tap to vote, and see who voted for what.
+- **🚗 On my way home**: ＋ → *On my way home* writes "On my way home – home about 18:40" from where your phone is, and the house says so when you arrive.
+- **🔊 Read aloud**: the house's messages said on a speaker (⚙️ → *Read aloud*) – only when somebody is home, and not at night, except alarms.
+- **🔍 Search and 📌 pin**: search all messages from the top, and pin an important one (the Wi-Fi code …) so it stays on top.
+
+### The chat as an app – no login
+
+For children and others without a Home Assistant account: under ⚙️ → **The chat as an app** an admin makes a link with a name (and a person, if they have one). They open the link and choose *Add to Home Screen* (*Install* on Android) – it runs like an app, with notifications when somebody writes, also when it's closed. The link only opens the chat – nothing else in Home Assistant, and it can't control the house. Delete the link and the app stops at once. With Nabu Casa (or your own outside address) it works at home and away.
 
 ### The house writes by itself
 
@@ -74,7 +84,7 @@ Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach
 
 ## Dansk
 
-- **En chat-boble på alle sider i Home Assistant**, ligesom Messenger. Et rødt tal for nye beskeder og en lille forsmag, når nogen skriver. Træk den ned på ✕, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.
+- **En chat-boble på alle sider i Home Assistant**, ligesom Messenger. Et rødt tal for nye beskeder og en lille forsmag, når nogen skriver. Træk den ned på ✕ (eller tryk to gange hurtigt på den), så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.
 - **Skriv sammen**: tekst, billeder og lydbeskeder. Alle kan se, hvem der skriver.
 - **Tryk på en besked** for at reagere (👍 ❤️ 😂 😮 😢 🙏), svare med citat, rette din egen (vises som *redigeret*) eller slette den. Under din seneste besked kan du se, hvem der har **set** den.
 - **Privat, hvor det skal være**: en besked til nogle få ses kun af dem, og et spørgsmål til huset og svaret kun af den, der spurgte. En konto uden person og uden app (fx en vægtablet) ser ingen beskeder. En admin kan slette enhver besked eller rydde hele chatten under ⚙️.
@@ -83,6 +93,16 @@ Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach
 - **Når appen er lukket**, kommer beskeden som en notifikation, du kan svare direkte i eller trykke *Jeg tager den*. Læser du den et sted, forsvinder den også fra dine telefoner – og har du chatten åben, får du ingen notifikation (akutte alarmer kommer stadig).
 - **Stille timer** pr. person – kun det, der haster, kommer igennem.
 - **Intet at sætte op**: alle med Home Assistant-appen på telefonen er med – også uden en person.
+- **🛒 Indkøbsliste**: skriv "køb mælk, brød og æg", så kommer det på Home Assistants indkøbsliste. ＋ → *Indkøbsliste* viser den – kryds af eller tilføj mere.
+- **⏰ Påmindelser**: "mind mig om tandlæge i morgen kl. 8", "mind os om fodbold på fredag kl. 17" eller "… om 20 min" – huset skriver på tidspunktet. Slet beskeden, så forsvinder påmindelsen også.
+- **📊 Afstemning**: ＋ → *Afstemning* – et spørgsmål med 2–6 svar. Tryk for at stemme, og se hvem der stemte hvad.
+- **🚗 På vej hjem**: ＋ → *På vej hjem* skriver "På vej hjem – hjemme ca. kl. 17:40" ud fra, hvor telefonen er, og huset siger til, når du er hjemme.
+- **🔊 Læs højt**: husets beskeder siges på en højttaler (⚙️ → *Læs højt*) – kun når nogen er hjemme, og ikke om natten, undtagen alarmer.
+- **🔍 Søg og 📌 fastgør**: søg i alle beskeder fra toppen, og fastgør en vigtig besked (wifi-koden …), så den bliver øverst.
+
+### Chatten som app – uden login
+
+Til børn og andre uden en Home Assistant-konto: under ⚙️ → **Chatten som app** laver en admin et link med et navn (og en person, hvis de har en). De åbner linket og vælger *Føj til hjemmeskærm* (*Installer* på Android) – så kører det som en app, med beskeder når nogen skriver, også når den er lukket. Linket åbner kun chatten – intet andet i Home Assistant, og det kan ikke styre huset. Slet linket, så holder appen op med det samme. Med Nabu Casa (eller din egen adresse udefra) virker det både hjemme og ude.
 
 ### Huset skriver selv
 

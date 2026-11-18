@@ -16,7 +16,7 @@ from .const import DOMAIN, SHOWN, SIGNAL
 
 def async_setup(hass: HomeAssistant) -> None:
     for cmd in (ws_subscribe, ws_send, ws_take, ws_read, ws_prefs, ws_rules, ws_agent, ws_delete, ws_clear, ws_edit, ws_react,
-                ws_presence):
+                ws_presence, ws_links, ws_extra, ws_speak):
         websocket_api.async_register_command(hass, cmd)
 
 
@@ -53,7 +53,8 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
         "type": "init", "messages": chat.visible(uid, admin)[-SHOWN:], "people": chat.people(), "me": _me(chat, connection),
         "member": chat.member(uid, admin), "reads": chat.reads(),
         "unread": chat.unread(uid, admin), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, []),
-        "rules": chat.get_rules(), "agents": chat.agents()}))
+        "rules": chat.get_rules(), "agents": chat.agents(), "pinned": chat.pinned,
+        "speak": chat.speak_info() if admin else None}))
 
 
 @websocket_api.websocket_command({
@@ -214,3 +215,116 @@ def ws_presence(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     if chat := _chat(hass):
         chat.set_active(connection.user.id, msg["open"])
     connection.send_result(msg["id"])
+
+
+def _app_url(hass: HomeAssistant) -> tuple[str, bool]:
+    """Where a link opens: Nabu Casa (or your own outside address) first, so it works away from home too."""
+    from homeassistant.helpers.network import NoURLAvailableError, get_url
+
+    try:
+        return get_url(hass, allow_internal=False, allow_ip=False, prefer_cloud=True), True
+    except NoURLAvailableError:
+        try:
+            return get_url(hass, prefer_external=False), False
+        except NoURLAvailableError:
+            return "", False
+
+
+def _links(hass: HomeAssistant, chat: Chat) -> dict[str, Any]:
+    base, outside = _app_url(hass)
+    from .app import PAGE
+
+    return {"outside": outside, "links": [{"id": lid, "name": x.get("name"), "person": x.get("person"), "created": x.get("created"),
+                                           "devices": len(x.get("subs") or []), "url": f"{base}{PAGE}/{x['token']}/"}
+                                          for lid, x in sorted(chat.links.items(), key=lambda kv: kv[1].get("created", 0))]}
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/links",
+    vol.Optional("create"): {vol.Required("name"): vol.All(str, vol.Length(min=1, max=40)), vol.Optional("person"): vol.Any(None, str)},
+    vol.Optional("delete"): str,
+})
+@websocket_api.require_admin
+@callback
+def ws_links(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The chat as an app from a link: made and removed by an admin - for children and others without an account."""
+    chat = _chat(hass)
+    if not chat:
+        connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
+        return
+    if c := msg.get("create"):
+        person = c.get("person")
+        if person and not (person.startswith("person.") and hass.states.get(person)):
+            connection.send_error(msg["id"], "invalid", "Unknown person")
+            return
+        chat.add_link(c["name"], person)
+    if lid := msg.get("delete"):
+        chat.remove_link(lid)
+        from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+        async_dispatcher_send(hass, SIGNAL, "links", {})  # an open app from that link stops at once
+    connection.send_result(msg["id"], _links(hass, chat))
+
+
+async def extra(chat: Chat, uid: str, me: str, msg: dict[str, Any]) -> Any:
+    """The little extras - the same for Home Assistant's websocket and the app from a link: the shopping list, a poll,
+    a vote, pin a message, and "on my way home"."""
+    what = msg.get("what")
+    if what == "shop":
+        return await chat.shop_list(add=msg.get("add") if isinstance(msg.get("add"), str) else None,
+                                    done=msg.get("done") if isinstance(msg.get("done"), str) else None)
+    if what == "poll":
+        q, opts = str(msg.get("question") or "").strip()[:200], [str(o).strip()[:80] for o in (msg.get("options") or []) if str(o).strip()]
+        if not q or len(opts) < 2:
+            return {"error": "invalid"}
+        m = await chat.post(me, q, poll=opts[:6])
+        return {"id": m["id"]}
+    if what == "vote" and isinstance(msg.get("message"), str):
+        try:
+            return {"ok": chat.vote(msg["message"], uid, int(msg.get("option")))}
+        except (TypeError, ValueError):
+            return {"ok": False}
+    if what == "pin":
+        return {"ok": chat.pin(msg.get("message") if isinstance(msg.get("message"), str) else None)}
+    if what == "onway":
+        m = await chat.on_my_way(me)
+        return {"id": m["id"]}
+    return {"error": "unsupported"}
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/extra", vol.Required("what"): vol.In(["shop", "poll", "vote", "pin", "onway"]),
+                                  vol.Optional("add"): str, vol.Optional("done"): str, vol.Optional("question"): str,
+                                  vol.Optional("options"): [str], vol.Optional("message"): vol.Any(None, str), vol.Optional("option"): int})
+@websocket_api.async_response
+async def ws_extra(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    chat = _chat(hass)
+    if not chat or not chat.member(connection.user.id, connection.user.is_admin):
+        connection.send_error(msg["id"], "unauthorized", "Not in the family chat")
+        return
+    try:
+        res = await extra(chat, connection.user.id, chat.sender_of(connection.user.id, connection.user.name), msg)
+    except Exception as err:  # noqa: BLE001 - e.g. a to-do list that refuses
+        connection.send_error(msg["id"], "failed", str(err))
+        return
+    connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/speak", vol.Optional("on"): bool, vol.Optional("player"): vol.Any(None, str),
+                                  vol.Optional("test"): bool})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_speak(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The house's messages read aloud on a speaker - chosen by an admin."""
+    chat = _chat(hass)
+    if not chat:
+        connection.send_error(msg["id"], "not_loaded", "House Chat is not set up")
+        return
+    if "player" in msg and msg["player"] and not msg["player"].startswith("media_player."):
+        connection.send_error(msg["id"], "invalid", "Not a speaker")
+        return
+    info = chat.set_speak(msg.get("on"), msg.get("player") if "player" in msg else None) if ("on" in msg or "player" in msg) else chat.speak_info()
+    if msg.get("test"):
+        from .const import DEFAULT_TITLE, TITLES
+
+        await chat.say(TITLES.get((hass.config.language or "en").split("-")[0], DEFAULT_TITLE))
+    connection.send_result(msg["id"], info)

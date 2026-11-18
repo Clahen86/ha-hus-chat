@@ -13,19 +13,19 @@ TITLES = {"da": "Hus-chat", "nb": "Hus-chat", "sv": "Hus-chatt", "de": "Haus-Cha
 DEFAULT_TITLE = "House Chat"
 
 TEXT = {
-    "da": {"reply": "Svar", "take": "✋ Jeg tager den", "taken": "{name} tog den", "nobody": "Ingen har reageret – sendt til alle.",
+    "da": {"onway": "På vej hjem", "eta": "hjemme ca. kl. {t}", "arrived": "{name} er hjemme", "reply": "Svar", "take": "✋ Jeg tager den", "taken": "{name} tog den", "nobody": "Ingen har reageret – sendt til alle.",
            "house": "Huset", "image": "📷 Billede", "audio": "🎤 Lydbesked", "family": "Familien"},
-    "en": {"reply": "Reply", "take": "✋ I'll take it", "taken": "{name} took it", "nobody": "Nobody reacted – sent to everyone.",
+    "en": {"onway": "On my way home", "eta": "home about {t}", "arrived": "{name} is home", "reply": "Reply", "take": "✋ I'll take it", "taken": "{name} took it", "nobody": "Nobody reacted – sent to everyone.",
            "house": "The house", "image": "📷 Picture", "audio": "🎤 Voice message", "family": "Family"},
-    "de": {"reply": "Antworten", "take": "✋ Ich mach das", "taken": "{name} macht es", "nobody": "Niemand hat reagiert – an alle gesendet.",
+    "de": {"onway": "Auf dem Heimweg", "eta": "zu Hause gegen {t}", "arrived": "{name} ist zu Hause", "reply": "Antworten", "take": "✋ Ich mach das", "taken": "{name} macht es", "nobody": "Niemand hat reagiert – an alle gesendet.",
            "house": "Das Haus", "image": "📷 Bild", "audio": "🎤 Sprachnachricht", "family": "Familie"},
-    "sv": {"reply": "Svara", "take": "✋ Jag tar det", "taken": "{name} tog det", "nobody": "Ingen reagerade – skickat till alla.",
+    "sv": {"onway": "På väg hem", "eta": "hemma ca kl. {t}", "arrived": "{name} är hemma", "reply": "Svara", "take": "✋ Jag tar det", "taken": "{name} tog det", "nobody": "Ingen reagerade – skickat till alla.",
            "house": "Huset", "image": "📷 Bild", "audio": "🎤 Röstmeddelande", "family": "Familjen"},
-    "nb": {"reply": "Svar", "take": "✋ Jeg tar den", "taken": "{name} tok den", "nobody": "Ingen reagerte – sendt til alle.",
+    "nb": {"onway": "På vei hjem", "eta": "hjemme ca. kl. {t}", "arrived": "{name} er hjemme", "reply": "Svar", "take": "✋ Jeg tar den", "taken": "{name} tok den", "nobody": "Ingen reagerte – sendt til alle.",
            "house": "Huset", "image": "📷 Bilde", "audio": "🎤 Talemelding", "family": "Familien"},
-    "nl": {"reply": "Antwoorden", "take": "✋ Ik doe het", "taken": "{name} doet het", "nobody": "Niemand reageerde – naar iedereen gestuurd.",
+    "nl": {"onway": "Onderweg naar huis", "eta": "thuis rond {t}", "arrived": "{name} is thuis", "reply": "Antwoorden", "take": "✋ Ik doe het", "taken": "{name} doet het", "nobody": "Niemand reageerde – naar iedereen gestuurd.",
            "house": "Het huis", "image": "📷 Foto", "audio": "🎤 Spraakbericht", "family": "Familie"},
-    "fr": {"reply": "Répondre", "take": "✋ Je m'en occupe", "taken": "{name} s'en occupe", "nobody": "Personne n'a réagi – envoyé à tous.",
+    "fr": {"onway": "En route vers la maison", "eta": "à la maison vers {t}", "arrived": "{name} est à la maison", "reply": "Répondre", "take": "✋ Je m'en occupe", "taken": "{name} s'en occupe", "nobody": "Personne n'a réagi – envoyé à tous.",
            "house": "La maison", "image": "📷 Photo", "audio": "🎤 Message vocal", "family": "Famille"},
 }
 

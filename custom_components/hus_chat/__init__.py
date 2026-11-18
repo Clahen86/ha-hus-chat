@@ -44,6 +44,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket.async_setup(hass)
     hass.http.register_view(UploadView(hass))
     hass.http.register_view(MediaView(hass))
+    from .app import AppApiView, AppIconView, AppPageView
+
+    hass.http.register_view(AppPageView(hass))  # the chat as an app from a secret link (no login)
+    hass.http.register_view(AppIconView())
+    hass.http.register_view(AppApiView(hass))
     # Files under a new address for every change (newest file time), so a browser never mixes old and new files.
     folder = Path(__file__).parent / "frontend"
     stamp = await hass.async_add_executor_job(lambda: int(max(p.stat().st_mtime for p in folder.glob("*.js"))))
