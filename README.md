@@ -6,7 +6,7 @@
 
 ![House Chat](docs/showcase.png)
 
-<p align="center"><img src="docs/chat_light.png" width="250" alt="The chat"> <img src="docs/chat_dark.png" width="250" alt="Dark theme"> <img src="docs/extras.png" width="250" alt="Picture, poll, on my way home, shopping list"> <img src="docs/app.png" width="250" alt="The app from a link"> <img src="docs/settings.png" width="250" alt="Read aloud and app links"> <img src="docs/actions.png" width="250" alt="React, reply, pin, edit, delete"></p>
+<p align="center"><img src="docs/chat_light.png" width="250" alt="The chat"> <img src="docs/chat_dark.png" width="250" alt="Dark theme"> <img src="docs/extras.png" width="250" alt="Picture, poll, on my way home, shopping list"> <img src="docs/app.png" width="250" alt="The app from a link"> <img src="docs/settings.png" width="250" alt="Read aloud and app links with QR code"> <img src="docs/actions.png" width="250" alt="React, reply, pin, edit, delete"></p>
 
 ## English
 
