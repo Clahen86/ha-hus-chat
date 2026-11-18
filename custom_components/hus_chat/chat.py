@@ -386,14 +386,14 @@ class Chat:
             self.active.pop(user_id, None)
 
     def set_prefs(self, user_id: str, prefs: dict[str, Any]) -> dict[str, Any]:
-        cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], "muted": [], **self.prefs.get(user_id, {})}
+        cur = {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "closed": 0, "phones_off": [], "muted": [], **self.prefs.get(user_id, {})}
         cur.update({k: v for k, v in prefs.items() if k in cur})
         self.prefs[user_id] = cur
         self._save()
         return cur
 
     def get_prefs(self, user_id: str) -> dict[str, Any]:
-        return {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "phones_off": [], "muted": [],
+        return {"quiet": False, "quiet_from": "22:00", "quiet_to": "07:00", "push": True, "bubble": True, "closed": 0, "phones_off": [], "muted": [],
                 **self.prefs.get(user_id, {})}
 
     def set_rules(self, rules: dict[str, Any]) -> dict[str, Any]:

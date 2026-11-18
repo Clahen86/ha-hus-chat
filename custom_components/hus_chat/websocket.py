@@ -118,6 +118,7 @@ def ws_read(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
     vol.Optional("quiet_to"): vol.Match(r"^\d{2}:\d{2}$"),
     vol.Optional("push"): bool,
     vol.Optional("bubble"): bool,
+    vol.Optional("closed"): vol.All(vol.Coerce(float), vol.Range(min=0)),  # the bubble tucked away: kept for the user, on every address
     vol.Optional("phones_off"): [str],
     vol.Optional("muted"): [str],
 })

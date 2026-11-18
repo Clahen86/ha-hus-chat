@@ -901,12 +901,19 @@ class Bubble {
     this.show();
   }
   onEvent(e) {
-    if (e.type === "init") { this.me = e.me; this.prefs = e.prefs; this.unread = e.unread; this.lastT = e.messages.at(-1)?.t || 0; }
+    if (e.type === "init") {
+      this.me = e.me; this.prefs = e.prefs; this.unread = e.unread; this.lastT = e.messages.at(-1)?.t || 0;
+      // tucked away on another address (the app at home and away) or before a restart: the user's own setting wins
+      this.dismissed = Math.max(this.dismissed || 0, Number(e.prefs?.closed) || 0);
+      const news = e.messages.some((m) => m.from !== this.me?.id && m.t > this.dismissed);
+      if (this.dismissed && news && this.unread) this.unclose();
+      else this.show();
+    }
     else if (e.type === "message") {
       const m = e.message;
       this.unread = this.open ? 0 : e.unread;
       if (m.from !== this.me?.id && !this.open) {
-        if (m.t > this.dismissed) { this.dismissed = 0; try { localStorage.removeItem("hus-chat-closed"); } catch (x) { /* private */ } }
+        if (this.dismissed && m.t > this.dismissed) this.unclose();
         this.show(); this.toast(m);
         this.head.classList.remove("bump"); void this.head.offsetWidth; this.head.classList.add("bump");
       }
@@ -964,14 +971,20 @@ class Bubble {
     });
   }
   overX(e) { const r = this.x.getBoundingClientRect(); return Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) < 70; }
+  saveClosed(t) {
+    haHass()?.connection.sendMessagePromise({ type: "hus_chat/prefs", closed: t }).then((r) => { this.prefs = r; }).catch(() => {});
+  }
   unclose() {
+    const was = this.dismissed;
     this.dismissed = 0;
     try { localStorage.removeItem("hus-chat-closed"); } catch (x) { /* private */ }
+    if (was) this.saveClosed(0);
     this.show();
   }
   close() {  // tucked away as a tab at the edge until it's tapped or somebody writes
     this.dismissed = Date.now() / 1000;
     try { localStorage.setItem("hus-chat-closed", String(this.dismissed)); } catch (x) { /* private */ }
+    this.saveClosed(this.dismissed);
     this.toggle(false); this.show();
   }
   toast(m) {
