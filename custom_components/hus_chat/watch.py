@@ -6,11 +6,18 @@
 - doorbell: a doorbell rings -> with a picture from a camera on the same device or in the same area.
 - alarm: the alarm goes off (urgent) or is armed / disarmed.
 
+Together with Pligt-pilot and Madplan, when they are there (nothing to set up; without them nothing happens):
+- a machine taken in the chat or emptied is told on the bus (hus_chat_machine); a child taking it in Pligt-pilot
+  (pligt_pilot_task) marks the message taken here.
+- "Dinner is ready" when a child marks a meal done in Pligt-pilot, and "<kid> is cooking today" at 7 in the morning
+  of the day Madplan gives them (madplan_cook) - once per child and day, also over a restart.
+
 Who gets each kind is chosen under Settings (admins), and each person can turn a kind off for themselves - except safety.
 """
 
 from __future__ import annotations
 
+from datetime import date, datetime, time as dtime
 import logging
 import time
 from typing import Any
@@ -18,9 +25,10 @@ from typing import Any
 from homeassistant.const import STATE_ON
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_track_point_in_time
+from homeassistant.util import dt as dt_util
 
-from .const import HOUSE
+from .const import HOUSE, TEXT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +54,15 @@ WORDS = {
            "aw_lost": "No reading – has it lost power?", "aw_tank": "Stopped – the tank is probably full.", "aw_ok": "Works again"},
 }
 MACHINE_ICON = {"dishwasher": "🍽️", "washing_machine": "🧺", "washer": "🧺", "dryer": "🌀"}
+MACHINE_WORDS = (("dishwasher", ("opvask", "dish")), ("dryer", ("tørre", "tumbl", "dryer", "trockner", "tork")),
+                 ("washer", ("vask", "wash", "wasch", "tvätt")))
+COOK_AT = dtime(7)  # "<kid> is cooking today" is said at 7 in the morning
+
+
+def machine_type(name: str | None) -> str:
+    """washer, dryer, dishwasher or other - from the machine's name, the same way in every app (Pligt-pilot)."""
+    n = str(name or "").lower()
+    return next((kind for kind, words in MACHINE_WORDS if any(w in n for w in words)), "other")
 
 
 class Watch:
@@ -53,10 +70,15 @@ class Watch:
         self.hass, self.chat = hass, chat
         self._unsubs: list[Any] = []
         self._last: dict[str, float] = {}
+        self._cook_timers: dict[str, Any] = {}
 
     @property
     def w(self) -> dict[str, str]:
         return WORDS.get((self.hass.config.language or "en").split("-")[0], WORDS["en"])
+
+    @property
+    def t(self) -> dict[str, str]:
+        return TEXT.get((self.hass.config.language or "en").split("-")[0], TEXT["en"])
 
     def rule(self, topic: str) -> dict[str, Any]:
         return {**DEFAULT_RULES[topic], **(self.chat.rules.get(topic) or {})}
@@ -66,11 +88,16 @@ class Watch:
         self._unsubs.append(self.hass.bus.async_listen("appliance_watch_emptied", self._machine_emptied))
         self._unsubs.append(self.hass.bus.async_listen("appliance_watch_alert", self._machine_alert))
         self._unsubs.append(self.hass.bus.async_listen("state_changed", self._state))
+        self._unsubs.append(self.hass.bus.async_listen("pligt_pilot_task", self._task))
+        self._unsubs.append(self.hass.bus.async_listen("madplan_cook", self._cook))
+        for key in list(self.chat.cooks):  # after a restart
+            self._plan_cook(key)
 
     def stop(self) -> None:
-        for u in self._unsubs:
+        for u in [*self._unsubs, *self._cook_timers.values()]:
             u()
         self._unsubs.clear()
+        self._cook_timers.clear()
 
     def _often(self, key: str, seconds: float) -> bool:
         now = time.time()
@@ -90,12 +117,13 @@ class Watch:
         d = event.data
         icon = MACHINE_ICON.get(str(d.get("kind") or ""), "✅")
         await self._post("machines", self.w["done"].format(icon=icon, name=d.get("name") or "?"), "", take=True,
-                         machine=str(d.get("entry_id") or "") or None)
+                         machine=str(d.get("entry_id") or "") or None, mtype=machine_type(d.get("name")))
 
     async def _machine_emptied(self, event: Event) -> None:
         # The machine is kept on its message, so this works after a restart too.
         if m := self.chat.machine_message(str(event.data.get("entry_id") or "")):
             await self.chat.take(m["id"], HOUSE, name=self.w["emptied"])
+        self.hass.bus.async_fire("hus_chat_machine", {"kind": "emptied", "machine": machine_type(event.data.get("name")), "name": ""})
 
     async def _machine_alert(self, event: Event) -> None:
         """A freezer or a dehumidifier in trouble (Appliance Watch); a freezer that stopped is urgent - the food thaws."""
@@ -179,3 +207,69 @@ class Watch:
             await self._post("alarm", self.w["armed"])
         elif state == "disarmed":
             await self._post("alarm", self.w["disarmed"])
+
+    # ---------- Pligt-pilot and Madplan ----------
+    async def _task(self, event: Event) -> None:
+        """A child took a machine in Pligt-pilot (taken here too, not told back), or made dinner (said to those at home)."""
+        d = event.data
+        kid = str(d.get("kid") or "").strip()
+        if d.get("kind") == "taken" and d.get("source") == "machine":
+            kind = str(d.get("machine") or "")
+            m = next((x for x in reversed(self.chat.msgs) if x.get("take") and not x.get("taken")
+                      and kind != "other" and self.chat.machine_kind(x) == kind), None)
+            if m:
+                who = next((p["id"] for p in self.chat.people() if kid and p["name"].lower() == kid.lower()), HOUSE)
+                await self.chat.take(m["id"], who, name=kid or None, tell=False)
+        elif d.get("kind") == "done" and d.get("source") == "meal":
+            text = self.t["meal_ready"].format(meal=str(d.get("meal") or d.get("title") or "?"), kid=kid or "?")
+            await self.chat.post(HOUSE, f"🍽️ {text}", kind="house", to="home")
+
+    async def _cook(self, event: Event) -> None:
+        """Madplan gave a child a dinner day: said to the family at 7 that morning (at once if later) - once per child and day."""
+        d = event.data
+        kid, meal = str(d.get("kid") or "").strip(), str(d.get("meal") or "").strip()
+        try:
+            day = date.fromisoformat(str(d.get("date") or ""))
+        except ValueError:
+            return
+        if not kid or not meal or day < dt_util.now().date():
+            return
+        today = dt_util.now().date().isoformat()
+        self.chat.cooks = {k: c for k, c in self.chat.cooks.items() if c["date"] >= today}  # days gone by
+        key = f"{kid.lower()}|{day.isoformat()}"
+        if (self.chat.cooks.get(key) or {}).get("sent"):
+            return
+        self.chat.cooks[key] = {"kid": kid, "meal": meal, "time": str(d.get("time") or "")[:5], "date": day.isoformat(), "sent": False}
+        self.chat._save()
+        self._plan_cook(key)
+
+    def _plan_cook(self, key: str) -> None:
+        if cancel := self._cook_timers.pop(key, None):
+            cancel()
+        c = self.chat.cooks[key]
+        day = date.fromisoformat(c["date"])
+        if day < dt_util.now().date():
+            del self.chat.cooks[key]  # a day gone by: nothing to say or keep
+            self.chat._save()
+            return
+        if c["sent"]:
+            return
+        at = datetime.combine(day, COOK_AT, tzinfo=dt_util.get_default_time_zone())
+        if at <= dt_util.now():
+            self.hass.async_create_task(self._say_cook(key))
+            return
+
+        async def _due(_now: Any) -> None:
+            self._cook_timers.pop(key, None)
+            await self._say_cook(key)
+
+        self._cook_timers[key] = async_track_point_in_time(self.hass, _due, at)
+
+    async def _say_cook(self, key: str) -> None:
+        c = self.chat.cooks.get(key)
+        if not c or c["sent"]:
+            return
+        c["sent"] = True
+        self.chat._save()
+        text = self.t["cook"].format(kid=c["kid"], meal=c["meal"]) + (self.t["cook_at"].format(t=c["time"]) if c["time"] else "")
+        await self.chat.post(HOUSE, f"🍳 {text}", kind="house", to="all")

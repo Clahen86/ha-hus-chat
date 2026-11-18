@@ -63,6 +63,7 @@ class Chat:
         self.speak: dict[str, Any] = {"on": False, "player": None}  # the house's messages read aloud on a speaker
         self.onway: dict[str, float] = {}  # person -> when they wrote "on my way home" (to say when they are home)
         self.vapid: Any = None  # the key web push is signed with (webpush.py)
+        self.cooks: dict[str, dict[str, Any]] = {}  # "kid|date" -> who cooks what (Madplan), and whether it was said (watch.py)
 
     # ---------- storage ----------
     async def async_load(self) -> None:
@@ -77,6 +78,7 @@ class Chat:
         self.pinned = d.get("pinned")
         self.reminders = [r for r in d.get("reminders", []) if r.get("when", 0) > time.time() - 3600]
         self.speak = {"on": False, "player": None, **d.get("speak", {})}
+        self.cooks = d.get("cooks", {})
         from .webpush import Vapid
 
         self.vapid = Vapid(d.get("vapid"))
@@ -119,7 +121,8 @@ class Chat:
     def _save(self) -> None:
         self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules, "agent": self.agent,
                                                   "links": self.links, "vapid": self.vapid.pem if self.vapid else None,
-                                                  "pinned": self.pinned, "reminders": self.reminders, "speak": self.speak}, 2)
+                                                  "pinned": self.pinned, "reminders": self.reminders, "speak": self.speak,
+                                                  "cooks": self.cooks}, 2)
 
     def stop(self) -> None:
         for cancel in self._timers.values():
@@ -231,7 +234,7 @@ class Chat:
                    kind: str = "chat", take: bool = False, to: str | list[str] = "all", urgent: bool = False,
                    title: str | None = None, push: bool = True, topic: str | None = None, note: str | None = None,
                    cid: str | None = None, reply: str | None = None, machine: str | None = None,
-                   poll: list[str] | None = None) -> dict[str, Any]:
+                   mtype: str | None = None, poll: list[str] | None = None) -> dict[str, Any]:
         if cid and (same := next((m for m in reversed(self.msgs[-200:]) if m.get("cid") == cid and m["from"] == sender), None)):
             return same  # sent again after a lost connection: it was already here
         msg = {"id": uuid.uuid4().hex[:12], "t": time.time(), "from": sender, "name": self._name(sender), "text": str(text or "")[:4000], "kind": kind,
@@ -244,6 +247,8 @@ class Chat:
             msg["poll"] = [{"t": str(o)[:80], "votes": []} for o in poll[:6]]
         if machine:
             msg["machine"] = machine  # kept with the message, so "emptied" finds it also after a restart
+        if mtype:
+            msg["mtype"] = mtype  # washer, dryer, dishwasher or other - to match the machine in other apps (Pligt-pilot)
         if reply and (r := self.find(reply)):
             msg["reply"] = {"id": r["id"], "name": r.get("name") or "", "text": (r.get("text") or r.get("title") or
                             (_t(self.hass)["image"] if r.get("image") else _t(self.hass)["audio"] if r.get("audio") else ""))[:140]}
@@ -270,7 +275,9 @@ class Chat:
     def find(self, msg_id: str) -> dict[str, Any] | None:
         return next((m for m in reversed(self.msgs) if m["id"] == msg_id), None)
 
-    async def take(self, msg_id: str, sender: str, name: str | None = None) -> dict[str, Any] | None:
+    async def take(self, msg_id: str, sender: str, name: str | None = None, tell: bool = True) -> dict[str, Any] | None:
+        """Taken - from the chat, the phone or the house. A machine taken here is told to other apps (Pligt-pilot),
+        unless it came from them (tell=False)."""
         m = self.find(msg_id)
         if not m or m.get("taken"):
             return m
@@ -279,11 +286,26 @@ class Chat:
             cancel()
         self._save()
         async_dispatcher_send(self.hass, SIGNAL, "update", m)
+        if tell and sender != HOUSE and (kind := self.machine_kind(m)):
+            self.hass.bus.async_fire("hus_chat_machine", {"kind": "taken", "machine": kind, "name": m["taken"]["name"]})
         await self._clear_phones(msg_id)  # gone from everyone's phone
         return m
 
     def machine_message(self, key: str) -> dict[str, Any] | None:
         return next((m for m in reversed(self.msgs) if m.get("machine") == key and not m.get("taken")), None)
+
+    def machine_kind(self, m: dict[str, Any]) -> str | None:
+        """The machine's type on a machine message - also on one from before the type was kept (from its name in
+        Appliance Watch). None: not a machine (a freezer's alert, any other message)."""
+        if m.get("mtype"):
+            return m["mtype"]
+        key = m.get("machine") or ""
+        entry = self.hass.config_entries.async_get_entry(key) if key and not key.startswith("aw:") else None
+        if not entry or entry.domain != "appliance_watch":
+            return None
+        from .watch import machine_type
+
+        return machine_type(entry.title)
 
     async def delete(self, msg_id: str, user_id: str, admin: bool) -> bool:
         """Your own message - or any, for an admin. Its picture or voice message goes too."""
