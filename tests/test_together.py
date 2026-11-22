@@ -88,6 +88,7 @@ async def test_dinner_is_ready_to_those_at_home_and_read_aloud(hass: HomeAssista
     spoke = async_mock_service(hass, "tts", "speak")
     c.set_speak(True, "media_player.stue")
     freezer.move_to(_at(17))
+    hass.states.async_set("device_tracker.wictor", "not_home", force_update=True)  # the phone reported: surely away
     hass.bus.async_fire("pligt_pilot_task", {"kind": "done", "source": "meal", "meal": "Lasagne", "kid": "Silas", "title": "Maddag: Lasagne"})
     await hass.async_block_till_done()
     m = c.msgs[-1]

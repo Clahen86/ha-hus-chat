@@ -24,6 +24,8 @@
 - **📊 Polls**: ＋ → *Poll* – a question with 2–6 answers. Tap to vote, and see who voted for what.
 - **🚗 On my way home**: ＋ → *On my way home* writes "On my way home – home about 18:40" from where your phone is, and the house says so when you arrive.
 - **🔊 Read aloud**: the house's messages said on a speaker (⚙️ → *Read aloud*) – only when somebody is home, and not at night, except alarms.
+- **☀️ Good morning** at 7: the weather, dinner from Madplan, chores left in Pligt-pilot and the cheapest hours for power (⚙️ → *Messages from the house*).
+- **🍽️ Home for dinner?** A poll every day at the time you choose – only those who say yes are told when dinner is ready (`hus_chat.send` with `to: dinner`).
 - **🔍 Search and 📌 pin**: search all messages from the top, and pin an important one (the Wi-Fi code …) so it stays on top.
 
 ### The chat as an app – no login
@@ -99,6 +101,8 @@ Settings (⚙️ in the chat) → **🛟 Help** to write what's wrong and attach
 - **📊 Afstemning**: ＋ → *Afstemning* – et spørgsmål med 2–6 svar. Tryk for at stemme, og se hvem der stemte hvad.
 - **🚗 På vej hjem**: ＋ → *På vej hjem* skriver "På vej hjem – hjemme ca. kl. 17:40" ud fra, hvor telefonen er, og huset siger til, når du er hjemme.
 - **🔊 Læs højt**: husets beskeder siges på en højttaler (⚙️ → *Læs højt*) – kun når nogen er hjemme, og ikke om natten, undtagen alarmer.
+- **☀️ Godmorgen** kl. 7: vejret, aftensmad fra Madplan, dagens pligter fra Pligt-pilot og billigste strøm (⚙️ → *Beskeder fra huset*).
+- **🍽️ Hjemme til aftensmad?** En afstemning hver dag på det tidspunkt, I vælger – kun dem, der svarer ja, får besked, når maden er klar (`hus_chat.send` med `to: dinner`).
 - **🔍 Søg og 📌 fastgør**: søg i alle beskeder fra toppen, og fastgør en vigtig besked (wifi-koden …), så den bliver øverst.
 
 ### Chatten som app – uden login

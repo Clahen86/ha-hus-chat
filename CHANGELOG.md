@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.13.0 – 2026-11-22
+
+- Good morning at 7: the weather, dinner from Madplan and who cooks, chores left per child in Pligt-pilot, and the cheapest three hours for power - each line only when it's there. Switch it on under Settings → Messages from the house
+- Home for dinner? A poll every day at the time you choose. Those who say yes get "dinner is ready" (from Pligt-pilot, or hus_chat.send with to: dinner) - nobody answered: those at home
+- Messages to those at home also reach anyone whose location is unknown, or whose phone hasn't reported for 6 hours - in doubt, included
+- No more warning in Home Assistant's log at start-up (the version was read from disk in the event loop)
+
 ## 0.12.1 – 2026-11-18
 
 - The app from a link shows the house button when it's allowed, and always loads the newest version

@@ -33,7 +33,7 @@ PLATFORMS = [Platform.NOTIFY]
 SEND_SCHEMA = vol.Schema({
     vol.Required("message"): cv.string,
     vol.Optional("title"): cv.string,
-    vol.Optional("to", default="home"): vol.Any(vol.In(["home", "all"]), cv.entity_ids),
+    vol.Optional("to", default="home"): vol.Any(vol.In(["home", "all", "dinner"]), cv.entity_ids),
     vol.Optional("take", default=False): cv.boolean,
     vol.Optional("urgent", default=False): cv.boolean,
     vol.Optional("camera"): cv.entity_id,
@@ -79,7 +79,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
                 image = await hass.async_add_executor_job(chat.save_media, img.content, "jpg")
             except Exception:  # noqa: BLE001 - the message goes without the picture
                 image = None
-        m = await chat.post(HOUSE, call.data["message"], kind="house", title=call.data.get("title"), to=call.data["to"],
+        to = call.data["to"]
+        if to == "dinner":  # those who said yes in today's dinner poll - without a poll or a yes: those at home
+            to = chat.dinner_people() or "home"
+        m = await chat.post(HOUSE, call.data["message"], kind="house", title=call.data.get("title"), to=to,
                             take=call.data["take"], urgent=call.data["urgent"], image=image)
         return {"id": m["id"]}
 

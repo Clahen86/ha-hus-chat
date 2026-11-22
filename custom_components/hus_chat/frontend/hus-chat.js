@@ -13,8 +13,9 @@ const T = {
     bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ eller tryk to gange hurtigt på den, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
     rules: "Beskeder fra huset", rulesH: "Huset skriver selv, når noget sker. Vælg hvem der får hvad.", rulesKid: "Kun en admin kan ændre, hvem der får hvad.",
-    topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm" },
-    topicsH: { machines: "Maskiner færdige, og fryser eller affugter med problemer (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra" },
+    topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm", morning: "☀️ Godmorgen", dinner: "🍽️ Hjemme til aftensmad?" },
+    topicsH: { machines: "Maskiner færdige, og fryser eller affugter med problemer (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra", morning: "Kl. 7: vejret, aftensmad, dagens pligter og billigste strøm", dinner: "En afstemning hver dag – kun dem, der svarer ja, får besked, når maden er klar" },
+    ruleAt: "Spørg kl.",
     toHome: "Hjemme", toAll: "Alle", forMe: "Til mig", always: "Altid", on: "Slået til",
     myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
     picture: "Billede", voice: "Lydbesked", listen: "Lytter … sig det til huset", noStt: "Tale er ikke sat op i Assist – skriv i stedet.", heard: "Hørte ikke noget – prøv igen.", micNo: "Mikrofonen er ikke tilladt.", failed: "Kunne ikke sende – prøv igen.", back: "Tilbage", toHouseH: "Svar fra huset",
@@ -34,8 +35,9 @@ const T = {
     bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ or tap it twice quickly and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
     rules: "Messages from the house", rulesH: "The house writes by itself when something happens. Choose who gets what.", rulesKid: "Only an admin can change who gets what.",
-    topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm" },
-    topicsH: { machines: "Machines done, and a freezer or dehumidifier in trouble (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed" },
+    topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm", morning: "☀️ Good morning", dinner: "🍽️ Home for dinner?" },
+    topicsH: { machines: "Machines done, and a freezer or dehumidifier in trouble (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed", morning: "At 7: the weather, dinner, today's chores and the cheapest power", dinner: "A poll every day – only those who say yes are told when dinner is ready" },
+    ruleAt: "Ask at",
     toHome: "At home", toAll: "Everyone", forMe: "For me", always: "Always", on: "On",
     myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
     picture: "Picture", voice: "Voice message", listen: "Listening … tell the house", noStt: "Speech isn't set up in Assist – type instead.", heard: "Didn't catch that – try again.", micNo: "The microphone isn't allowed.", failed: "Couldn't send – try again.", back: "Back", toHouseH: "Answer from the house",
@@ -643,6 +645,7 @@ class HusChatView extends HTMLElement {
           <div class="set" style="margin-top:12px"><div class="srow"><div><b>${t.clear}</b><small>${t.clearH}</small></div>
             <button class="chip" style="color:#ff3b5c" data-a="clearall">🗑</button></div></div>` : ""}</div>`;
       el.querySelectorAll("[data-time]").forEach((i) => i.addEventListener("change", () => this.setPref(i.dataset.time, i.value)));
+      el.querySelectorAll("[data-ruleat]").forEach((i) => i.addEventListener("change", () => i.value && this.setRule(i.dataset.ruleat, { at: i.value })));
       el.querySelector("[data-agent]")?.addEventListener("change", (e) => this.setAgent(e.target.value));
       el.querySelector("[data-speaker]")?.addEventListener("change", (e) => this.setSpeak({ player: e.target.value || null }));
       if (this.me?.admin) this.addSuggest(el.firstChild, "card");  // only admins can install
@@ -744,6 +747,7 @@ class HusChatView extends HTMLElement {
         : `<button class="sw ${muted.has(k) ? "" : "on"}" data-a="mute" data-k="${k}" role="switch" aria-checked="${!muted.has(k)}" aria-label="${esc(t.forMe)}"></button>`;
       return `<div style="padding:12px 0;border-top:1px solid var(--line)"><div class="srow"><div><b>${t.topics[k]}</b><small>${t.topicsH[k]}</small></div>
         ${admin ? `<button class="sw ${r.on ? "on" : ""}" data-a="ruleon" data-k="${k}" role="switch" aria-checked="${r.on}" aria-label="${esc(t.on)}"></button>` : ""}</div>
+        ${r.on && admin && r.at ? `<div class="times" style="margin-top:8px"><label>${t.ruleAt}<input type="time" value="${esc(r.at)}" data-ruleat="${k}"></label></div>` : ""}
         ${r.on ? `${who}<div class="srow" style="margin-top:8px"><div><small>${t.forMe}</small></div>${mine}</div>` : ""}</div>`;
     }).join("");
     return `<div class="set"><b>${t.rules}</b><small style="display:block;color:var(--muted);font-size:12.5px;margin:2px 0 6px">${admin ? t.rulesH : t.rulesKid}</small>${rows}</div>`;

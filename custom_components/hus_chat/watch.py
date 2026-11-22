@@ -5,6 +5,8 @@
 - safety: a smoke, gas, CO or water sensor goes on -> urgent, rings like an alarm on the phones (also on silent).
 - doorbell: a doorbell rings -> with a picture from a camera on the same device or in the same area.
 - alarm: the alarm goes off (urgent) or is armed / disarmed.
+- dinner: at the chosen time a poll "Home for dinner today?" - hus_chat.send with to: dinner reaches those who said yes.
+- morning: good morning at 7 - weather, dinner, chores and the cheapest power (morning.py). Off until switched on.
 
 Together with Pligt-pilot and Madplan, when they are there (nothing to set up; without them nothing happens):
 - a machine taken in the chat or emptied is told on the bus (hus_chat_machine); a child taking it in Pligt-pilot
@@ -25,7 +27,7 @@ from typing import Any
 from homeassistant.const import STATE_ON
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
-from homeassistant.helpers.event import async_track_point_in_time
+from homeassistant.helpers.event import async_track_point_in_time, async_track_time_change
 from homeassistant.util import dt as dt_util
 
 from .const import HOUSE, TEXT
@@ -38,16 +40,18 @@ DEFAULT_RULES = {
     "safety": {"on": True, "to": "all"},
     "doorbell": {"on": True, "to": "home"},
     "alarm": {"on": False, "to": "all"},
+    "morning": {"on": False, "to": "all"},
+    "dinner": {"on": False, "to": "all", "at": "15:00"},
 }
 ALWAYS = {"safety"}  # nobody can turn these off for themselves
 
 WORDS = {
-    "da": {"done": "{icon} {name} er færdig", "emptied": "Tømt", "smoke": "Røgalarm", "gas": "Gasalarm", "carbon_monoxide": "CO-alarm",
+    "da": {"dinner_q": "🍽️ Hjemme til aftensmad i dag?", "dinner_yes": "🙋 Ja", "dinner_no": "Nej", "dinner_dish": "Der er {dish}", "done": "{icon} {name} er færdig", "emptied": "Tømt", "smoke": "Røgalarm", "gas": "Gasalarm", "carbon_monoxide": "CO-alarm",
            "moisture": "Vand", "in": "i {area}", "door": "🔔 Det ringer på døren", "alarm_triggered": "🚨 Alarmen går!",
            "armed": "🔒 Alarmen er slået til", "disarmed": "🔓 Alarmen er slået fra", "stopped": "✓ {name} er stoppet",
            "aw_stopped": "Har ikke kørt i timevis – tjek den, før maden tør op.", "aw_nonstop": "Kører uden pause – står døren åben?",
            "aw_lost": "Ingen måling – har den mistet strømmen?", "aw_tank": "Stoppet – tanken er nok fuld.", "aw_ok": "Virker igen"},
-    "en": {"done": "{icon} {name} is done", "emptied": "Emptied", "smoke": "Smoke alarm", "gas": "Gas alarm", "carbon_monoxide": "CO alarm",
+    "en": {"dinner_q": "🍽️ Home for dinner today?", "dinner_yes": "🙋 Yes", "dinner_no": "No", "dinner_dish": "It's {dish}", "done": "{icon} {name} is done", "emptied": "Emptied", "smoke": "Smoke alarm", "gas": "Gas alarm", "carbon_monoxide": "CO alarm",
            "moisture": "Water", "in": "in {area}", "door": "🔔 Someone is at the door", "alarm_triggered": "🚨 The alarm is going off!",
            "armed": "🔒 The alarm is armed", "disarmed": "🔓 The alarm is disarmed", "stopped": "✓ {name} has stopped",
            "aw_stopped": "Hasn't run for hours – check it before the food thaws.", "aw_nonstop": "Runs without a break – is the door open?",
@@ -90,6 +94,10 @@ class Watch:
         self._unsubs.append(self.hass.bus.async_listen("state_changed", self._state))
         self._unsubs.append(self.hass.bus.async_listen("pligt_pilot_task", self._task))
         self._unsubs.append(self.hass.bus.async_listen("madplan_cook", self._cook))
+        from .morning import AT_HOUR
+
+        self._unsubs.append(async_track_time_change(self.hass, self._morning, hour=AT_HOUR, minute=0, second=0))
+        self._unsubs.append(async_track_time_change(self.hass, self._dinner_poll, second=0))  # at the chosen minute
         for key in list(self.chat.cooks):  # after a restart
             self._plan_cook(key)
 
@@ -111,6 +119,38 @@ class Watch:
         if not r["on"]:
             return None
         return await self.chat.post(HOUSE, text, kind="house", title=title, to=r["to"], topic=topic, **kw)
+
+    # ---------- good morning ----------
+    async def _morning(self, _now: Any = None) -> None:
+        """The day ahead at 7 (morning.py) - only when switched on, and only when there's something to say."""
+        if not self.rule("morning")["on"]:
+            return
+        from . import morning
+
+        try:
+            got = await morning.build(self.hass)
+        except Exception:  # noqa: BLE001 - never in the way of the rest
+            _LOGGER.warning("Good morning could not be put together", exc_info=True)
+            return
+        if got:
+            await self._post("morning", got[0], got[1])
+
+    # ---------- dinner: who is home to eat ----------
+    async def _dinner_poll(self, now: Any = None) -> None:
+        """At the chosen time: "Home for dinner today?" - those who say yes get "dinner is ready" (hus_chat.send to: dinner)."""
+        r = self.rule("dinner")
+        now = dt_util.as_local(now) if isinstance(now, datetime) else dt_util.now()
+        today = now.date().isoformat()
+        if not r["on"] or now.strftime("%H:%M") != r.get("at") or (self.chat.dinner or {}).get("date") == today:
+            return
+        from . import morning
+
+        dish = morning.dinner_line(self.hass, {**morning.words(self.hass), "dinner": "{dish}"}, today)
+        self.chat.dinner = {"date": today, "msg": None}  # once a day, also when posting fails
+        m = await self._post("dinner", self.w["dinner_q"], self.w["dinner_dish"].format(dish=dish) if dish else "",
+                             poll=[self.w["dinner_yes"], self.w["dinner_no"]])
+        self.chat.dinner = {"date": today, "msg": m["id"] if m else None}
+        self.chat._save()
 
     # ---------- machines ----------
     async def _machine_done(self, event: Event) -> None:
@@ -222,7 +262,7 @@ class Watch:
                 await self.chat.take(m["id"], who, name=kid or None, tell=False)
         elif d.get("kind") == "done" and d.get("source") == "meal":
             text = self.t["meal_ready"].format(meal=str(d.get("meal") or d.get("title") or "?"), kid=kid or "?")
-            await self.chat.post(HOUSE, f"🍽️ {text}", kind="house", to="home")
+            await self.chat.post(HOUSE, f"🍽️ {text}", kind="house", to=self.chat.dinner_people() or "home")  # yes in the dinner poll
 
     async def _cook(self, event: Event) -> None:
         """Madplan gave a child a dinner day: said to the family at 7 that morning (at once if later) - once per child and day."""

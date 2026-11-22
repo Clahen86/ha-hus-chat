@@ -29,7 +29,7 @@ from homeassistant.helpers.event import async_call_later, async_track_time_inter
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import AI_RETRY_S, AI_TIMEOUT_S, BUILTIN_AGENT, DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, NOTE_FALLBACK, SIGNAL, STALE_S, TEXT
+from .const import AI_RETRY_S, AI_TIMEOUT_S, BUILTIN_AGENT, DOMAIN, ESCALATE_S, HOUSE, MAX_MESSAGES, NOTE_FALLBACK, SIGNAL, STALE_S, TEXT, UNSURE_S
 
 _LOGGER = logging.getLogger(__name__)
 GUARD_DOMAINS = ("lock", "alarm_control_panel")
@@ -67,6 +67,7 @@ class Chat:
         self.speak: dict[str, Any] = {"on": False, "player": None}  # the house's messages read aloud on a speaker
         self.onway: dict[str, float] = {}  # person -> when they wrote "on my way home" (to say when they are home)
         self.vapid: Any = None  # the key web push is signed with (webpush.py)
+        self.dinner: dict[str, Any] = {}  # today's dinner poll: {"date", "msg"} (watch.py)
         self.cooks: dict[str, dict[str, Any]] = {}  # "kid|date" -> who cooks what (Madplan), and whether it was said (watch.py)
 
     # ---------- storage ----------
@@ -83,6 +84,7 @@ class Chat:
         self.reminders = [r for r in d.get("reminders", []) if r.get("when", 0) > time.time() - 3600]
         self.speak = {"on": False, "player": None, **d.get("speak", {})}
         self.cooks = d.get("cooks", {})
+        self.dinner = d.get("dinner", {})
         from .webpush import Vapid
 
         self.vapid = Vapid(d.get("vapid"))
@@ -126,7 +128,7 @@ class Chat:
         self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules, "agent": self.agent,
                                                   "links": self.links, "vapid": self.vapid.pem if self.vapid else None,
                                                   "pinned": self.pinned, "reminders": self.reminders, "speak": self.speak,
-                                                  "cooks": self.cooks}, 2)
+                                                  "cooks": self.cooks, "dinner": self.dinner}, 2)
 
     def stop(self) -> None:
         for cancel in self._timers.values():
@@ -147,7 +149,8 @@ class Chat:
         for st in self.hass.states.async_all("person"):
             out[st.entity_id] = {"id": st.entity_id, "name": st.attributes.get("friendly_name") or st.entity_id.split(".")[1],
                                  "user_id": st.attributes.get("user_id"), "picture": st.attributes.get("entity_picture"),
-                                 "home": st.state == "home", "phones": [], "_trackers": set(st.attributes.get("device_trackers") or [])}
+                                 "home": st.state == "home", "unsure": self._unsure(st, st.attributes.get("device_trackers") or []),
+                                 "phones": [], "_trackers": set(st.attributes.get("device_trackers") or [])}
         by_user = {p["user_id"]: p for p in out.values() if p["user_id"]}
         ents = er.async_get(self.hass)
         now, phones_of, changed = time.time(), {}, False
@@ -163,7 +166,8 @@ class Chat:
                     continue
                 st = self.hass.states.get(tracker) if tracker else None
                 p = out[f"user.{uid}"] = {"id": f"user.{uid}", "name": self.users[uid], "user_id": uid, "picture": None,
-                                          "home": bool(st and st.state == "home"), "phones": [], "_trackers": set()}
+                                          "home": bool(st and st.state == "home"), "unsure": self._unsure(st, [tracker] if tracker else []),
+                                          "phones": [], "_trackers": set()}
                 by_user[uid] = p
             # An old phone: turned off under "My phones", or its location gone for 30 days.
             tst = self.hass.states.get(tracker) if tracker else None
@@ -188,6 +192,26 @@ class Chat:
         if changed:
             self._save()
         return sorted(({k: v for k, v in p.items() if k != "_trackers"} for p in out.values()), key=lambda p: p["name"].lower())
+
+    def _unsure(self, st: Any, trackers: list[str]) -> bool:
+        """Away, but not sure of it: no location, or none of the phones has reported for UNSURE_S (asleep, or the app
+        stopped by battery saving). Such a person gets messages "to those at home" too - in doubt, included."""
+        if st is None or st.state in ("unknown", "unavailable"):
+            return True
+        if st.state == "home":
+            return False
+        times = [t.last_updated.timestamp() for x in trackers if (t := self.hass.states.get(x)) and t.state not in ("unknown", "unavailable")]
+        return not times or time.time() - max(times) > UNSURE_S
+
+    # ---------- dinner: who is home to eat (the poll at the chosen time) ----------
+    def dinner_people(self) -> list[str] | None:
+        """Those who answered yes in today's dinner poll, or None when there's no poll today or nobody said yes."""
+        d = self.dinner or {}
+        if d.get("date") != dt_util.now().date().isoformat():
+            return None
+        m = self.find(d.get("msg") or "")
+        yes = list(m["poll"][0]["votes"]) if m and m.get("poll") else []
+        return yes or None
 
     def person_of(self, user_id: str | None) -> dict[str, Any] | None:
         if user_id and user_id.startswith("link:"):  # the app from a link: whoever the link belongs to
@@ -420,7 +444,7 @@ class Chat:
         for topic, r in rules.items():
             if topic in DEFAULT_RULES:
                 cur = {**DEFAULT_RULES[topic], **self.rules.get(topic, {})}
-                cur.update({k: v for k, v in r.items() if k in ("on", "to")})
+                cur.update({k: v for k, v in r.items() if k in ("on", "to") or (k == "at" and "at" in DEFAULT_RULES[topic])})
                 self.rules[topic] = cur
         self._save()
         return self.get_rules()
@@ -467,7 +491,7 @@ class Chat:
         if isinstance(to, list):
             people = [p for p in people if p["id"] in to]
         elif to == "home" and not everyone:
-            home = [p for p in people if p["home"]]
+            home = [p for p in people if p["home"] or p.get("unsure")]  # in doubt: included
             people = home or people  # nobody home: everyone
         from .watch import ALWAYS
 

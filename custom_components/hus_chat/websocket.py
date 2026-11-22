@@ -147,7 +147,8 @@ def ws_prefs(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
 
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/rules",
-    vol.Optional("rules"): {str: {vol.Optional("on"): bool, vol.Optional("to"): vol.Any(vol.In(["home", "all"]), [str])}},
+    vol.Optional("rules"): {str: {vol.Optional("on"): bool, vol.Optional("to"): vol.Any(vol.In(["home", "all"]), [str]),
+                                     vol.Optional("at"): vol.Match(r"^([01]\d|2[0-3]):[0-5]\d$")}},
 })
 @callback
 def ws_rules(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:

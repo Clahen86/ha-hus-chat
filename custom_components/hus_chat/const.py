@@ -7,6 +7,7 @@ SIGNAL = "hus_chat_update"
 MAX_MESSAGES = 1000  # the oldest go (with their pictures and voice messages)
 SHOWN = 200  # sent to the chat when it opens
 STALE_S = 30 * 24 * 3600  # a phone whose location has been gone this long gets no messages
+UNSURE_S = 6 * 3600  # no phone has said where it is for this long: in doubt, counted as home
 ESCALATE_S = 10 * 60  # a house message nobody took goes to everyone after this
 HOUSE = "house"
 TITLES = {"da": "Hus-chat", "nb": "Hus-chat", "sv": "Hus-chatt", "de": "Haus-Chat", "nl": "Huis-chat", "fr": "Chat maison"}

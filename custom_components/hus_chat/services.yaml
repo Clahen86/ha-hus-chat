@@ -15,6 +15,7 @@ send:
           options:
             - home
             - all
+            - dinner
           custom_value: true
     take:
       default: false
