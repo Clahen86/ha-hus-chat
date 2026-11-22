@@ -528,7 +528,10 @@ class Chat:
         if msg.get("take") and not msg.get("taken"):
             actions.append({"action": "URI", "title": t["take_pligt"], "uri": kid_url} if kid_url
                            else {"action": f"HUSCHAT_TAKE_{msg['id']}", "title": t["take"]})
-        actions.append({"action": "REPLY", "title": t["reply"], "behavior": "textInput"})
+        if msg.get("poll"):  # answer from the notification (Android shows three buttons)
+            actions += [{"action": f"HUSCHAT_VOTE_{msg['id']}_{i}", "title": o["t"]} for i, o in enumerate(msg["poll"][:3])]
+        else:
+            actions.append({"action": "REPLY", "title": t["reply"], "behavior": "textInput"})
         data: dict[str, Any] = {"tag": f"huschat-{msg['id']}", "group": "hus-chat", "url": "/hus-chat", "clickAction": "/hus-chat",
                                 "actions": actions, "channel": "Hus-chat urgent" if msg.get("urgent") else "Hus-chat"}
         if msg.get("image"):
@@ -708,12 +711,15 @@ class Chat:
         t = TEXT.get((self.hass.config.language or "en").split("-")[0], TEXT["en"])
         self.hass.async_create_task(self.post(HOUSE, f"🏠 {t['arrived'].format(name=self._name(who))}", kind="house", to="all"))
 
-    def vote(self, msg_id: str, user_id: str, option: int) -> bool:
+    def vote(self, msg_id: str, user_id: str, option: int, keep: bool = False) -> bool:
+        """A tap on your own answer takes it back - unless keep (a button in the notification: pressed twice, still yes)."""
         m = self.find(msg_id)
         if not m or not m.get("poll") or not self.can_see(m, user_id) or not 0 <= option < len(m["poll"]):
             return False
         me = self.sender_of(user_id)
         mine = me in m["poll"][option]["votes"]
+        if mine and keep:
+            return True
         for o in m["poll"]:
             if me in o["votes"]:
                 o["votes"].remove(me)
@@ -791,6 +797,10 @@ class Chat:
         user = event.context.user_id
         if action.startswith("HUSCHAT_TAKE_"):
             await self.take(action.removeprefix("HUSCHAT_TAKE_"), self.sender_of(user))
+        elif action.startswith("HUSCHAT_VOTE_") and user:
+            msg_id, _, option = action.removeprefix("HUSCHAT_VOTE_").rpartition("_")
+            if option.isdigit():
+                self.vote(msg_id, user, int(option), keep=True)
         elif action in ("REPLY", "HUSCHAT_REPLY") and (text := str(event.data.get("reply_text") or "").strip()):
             tag = str(event.data.get("tag") or "")
             if tag and not tag.startswith("huschat-"):

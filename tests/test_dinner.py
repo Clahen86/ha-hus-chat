@@ -54,3 +54,17 @@ async def test_send_to_dinner_reaches_only_the_yes(hass: HomeAssistant, chat) ->
     await hass.services.async_call("hus_chat", "send", {"message": "Maden er klar", "to": "dinner"}, blocking=True)
     await hass.async_block_till_done()
     assert len(calls["Wictor"]) == 1 and not calls["Lilly"]
+
+
+async def test_answer_the_poll_from_the_notification(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    c, calls = chat
+    m = await c.post(HOUSE, "", kind="house", title="Home for dinner?", poll=["Yes", "No"], topic="dinner")
+    await hass.async_block_till_done()
+    actions = calls["Wictor"][-1].data["data"]["actions"]
+    assert [a["title"] for a in actions] == ["Yes", "No"]  # the answers, not "Reply"
+    from homeassistant.core import Context
+
+    for _ in range(2):  # pressed twice: still yes, not taken back
+        hass.bus.async_fire("mobile_app_notification_action", {"action": actions[0]["action"]}, context=Context(user_id="u-wictor"))
+        await hass.async_block_till_done()
+    assert m["poll"][0]["votes"] == ["person.wictor"]

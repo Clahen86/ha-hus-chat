@@ -305,6 +305,12 @@ class HusChatView extends HTMLElement {
   }
   hm(ts) { return new Date(ts * 1000).toLocaleTimeString(this.hass?.language || undefined, { hour: "2-digit", minute: "2-digit" }); }
   wave(id) { let s = [...id].reduce((a, c) => a + c.charCodeAt(0), 7); return Array.from({ length: 24 }, () => { s = (s * 9301 + 49297) % 233280; return `<i style="height:${30 + (s / 233280) * 70}%"></i>`; }).join(""); }
+  pollHtml(m) {  // the answer buttons - in a chat bubble and in a card from the house (the dinner poll)
+    const t = this.t, total = m.poll.reduce((a, o) => a + o.votes.length, 0);
+    return `${m.poll.map((o, i) => `<button class="${o.votes.includes(this.me?.id) ? "mine" : ""}" data-a="vote" data-id="${esc(m.id)}" data-o="${i}">
+          <i style="width:${total ? Math.round(o.votes.length / total * 100) : 0}%"></i><span><b style="font-weight:600">${esc(o.t)}</b><em style="font-style:normal">${o.votes.length || ""}</em></span></button>`).join("")}
+          <small>${total === 1 ? t.vote1 : t.votes.replace("{n}", total)}${total ? " · " + esc(m.poll.flatMap((o) => o.votes).map((v) => this.people.find((p) => p.id === v)?.name.split(" ")[0] || "").filter(Boolean).join(", ")) : ""}</small>`;
+  }
   item(m, prev, next) {
     const t = this.t, me = m.from === this.me?.id, house = m.from === "house";
     const firstOfGroup = !prev || prev.from !== m.from || m.t - prev.t > 300 || prev.kind === "house";
@@ -314,6 +320,7 @@ class HusChatView extends HTMLElement {
     if (m.kind === "house") {
       const bang = m.urgent ? `<span class="urgent">!</span>` : "";
       body = `<div class="card${m.urgent && !m.taken ? " hot" : ""}">${m.title ? `<div class="h">${bang}${esc(m.title)}</div>` : ""}${m.text ? `<div class="${m.title ? "s" : "h"}">${m.title ? "" : bang}${esc(m.text)}</div>` : ""}
+        ${m.poll ? `<div class="poll" style="margin-top:6px">${this.pollHtml(m)}</div>` : ""}
         ${m.image ? `<img class="pic" style="margin-top:8px" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="">` : ""}
         ${m.take && !m.taken ? `<div class="chips">${(pl => pl ? `<button class="chip go" data-a="pligt" data-url="${esc(pl)}">${t.takePligt}</button>`
           : `<button class="chip go" data-a="take" data-id="${esc(m.id)}">${t.take}</button>`)(this.pligtFor(m))}</div>` : ""}</div>
@@ -322,10 +329,7 @@ class HusChatView extends HTMLElement {
       if (m.image) body += `<img class="pic" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="${t.picture}">`;
       if (m.audio) body += `<div class="audio" data-audio="${esc(m.audio)}"><button class="play" data-a="play" data-src="${esc(m.audio)}" aria-label="${t.voice}">▶</button><div class="wave">${this.wave(m.id)}</div><span class="dur">0:00</span></div>`;
       if (m.poll) {
-        const total = m.poll.reduce((a, o) => a + o.votes.length, 0);
-        body += `<div class="b poll"><div class="q">📊 ${esc(m.text)}</div>${m.poll.map((o, i) => `<button class="${o.votes.includes(this.me?.id) ? "mine" : ""}" data-a="vote" data-id="${esc(m.id)}" data-o="${i}">
-          <i style="width:${total ? Math.round(o.votes.length / total * 100) : 0}%"></i><span><b style="font-weight:600">${esc(o.t)}</b><em style="font-style:normal">${o.votes.length || ""}</em></span></button>`).join("")}
-          <small>${total === 1 ? t.vote1 : t.votes.replace("{n}", total)}${total ? " · " + esc(m.poll.flatMap((o) => o.votes).map((v) => this.people.find((p) => p.id === v)?.name.split(" ")[0] || "").filter(Boolean).join(", ")) : ""}</small></div>`;
+        body += `<div class="b poll"><div class="q">📊 ${esc(m.text)}</div>${this.pollHtml(m)}</div>`;
       } else if (m.text) body += `<div class="b${house ? " house" : ""}">${m.reply ? `<div class="quote">${esc(m.reply.name)}: ${esc(m.reply.text)}</div>` : ""}${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.edited ? `<span class="ed">(${t.edited})</span>` : ""}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
     }
     if (m.shop) body += `<span class="tag">${t.onShop}: ${esc(m.shop.join(", "))}</span>`;

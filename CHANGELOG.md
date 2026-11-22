@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.13.1 – 2026-11-22
+
+- The dinner poll came as a plain message: the Yes/No buttons now show in the chat, and in the notification on the phone - a tap there counts as your answer
+
 ## 0.13.0 – 2026-11-22
 
 - Good morning at 7: the weather, dinner from Madplan and who cooks, chores left per child in Pligt-pilot, and the cheapest three hours for power - each line only when it's there. Switch it on under Settings → Messages from the house
