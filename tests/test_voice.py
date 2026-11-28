@@ -104,3 +104,17 @@ async def test_when_school_starts_by_voice(hass: HomeAssistant, chat) -> None:  
     said = await _ask(hass, "hvornår møder Lilly på mandag", user="u-lilly")
     assert "møder" in said and "8:00" in said
     unreg()
+
+
+async def test_shopping_by_voice_goes_to_madplan(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    c, _ = chat
+    hass.config.language = "da"
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "conversation", {})
+    mad = async_mock_service(hass, "madplan", "egen_vare")  # (the sentences are already there from House Chat's own setup)
+    assert await _ask(hass, "Vi mangler toiletpapir") == "Toiletpapir er sat på indkøbslisten"
+    assert "Mælk og brød" in await _ask(hass, "sæt mælk og brød på indkøbslisten")
+    assert [x.data["tekst"] for x in mad] == ["Toiletpapir", "Mælk", "Brød"]
+    assert await _ask(hass, "vi mangler dig") == "Hvad skal på listen?"

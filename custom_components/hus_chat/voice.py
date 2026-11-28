@@ -58,6 +58,24 @@ def sentences(names: list[str]) -> list[str]:
 
 UNKNOWN = {"da": "Det kan jeg ikke se lige nu.", "en": "I can't see that right now."}
 
+# Shopping by voice: onto the same list as in the chat (Madplan's when it's there, else Home Assistant's) - not the one
+# an AI happens to pick.
+SHOP_SENTENCES = [
+    "vi mangler [noget|mere] {item}",
+    "vi er løbet tør for {item}",
+    "vi er tomme for {item}",
+    "(køb|husk at købe|vi skal købe) {item}",
+    "(sæt|tilføj|skriv|put) {item} på [indkøbs]listen",
+    "(sæt|tilføj|skriv|put) {item} på indkøbssedlen",
+    "we need [some|more] {item}",
+    "we're out of {item}",
+    "we are out of {item}",
+    "buy [some] {item}",
+    "(add|put) {item} (to|on) the shopping list",
+]
+SHOP_WORDS = {"da": {"ok": "{list} er sat på indkøbslisten", "fail": "Det kunne jeg ikke sætte på listen.", "what": "Hvad skal på listen?"},
+              "en": {"ok": "{list} is on the shopping list", "fail": "I couldn't put that on the list.", "what": "What should go on the list?"}}
+
 
 def spoken(text: str) -> str:
     """Said aloud: without the emoji, one line after the other."""
@@ -111,11 +129,39 @@ def setup(hass: HomeAssistant, chat: Any) -> CALLBACK_TYPE | None:
     register()
     if state["unreg"] is None:
         return None
+
+    async def shop(user_input: Any, result: Any) -> str:
+        from . import smart
+
+        lang = (hass.config.language or "en").split("-")[0]
+        sw = SHOP_WORDS.get(lang, SHOP_WORDS["en"])
+        ent = (getattr(result, "entities", None) or {}).get("item")
+        raw = str(getattr(ent, "text", None) or getattr(ent, "value", "") or "").strip(" .!?")
+        first = raw.split()[0].lower() if raw.split() else ""
+        if not raw or first in smart.NOT_THINGS:
+            return sw["what"]
+        items = smart.shop_items(f"køb {raw}") or [raw[0].upper() + raw[1:]]
+        try:
+            ok = await chat.add_to_shopping(items)
+        except Exception:  # noqa: BLE001
+            ok = False
+        if not ok:
+            return sw["fail"]
+        names = [i.lower() for i in items]
+        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + (" og " if lang == "da" else " and ") + names[-1]
+        return sw["ok"].format(list=listed[0].upper() + listed[1:])
+
+    try:
+        unshop = get_agent_manager(hass).register_trigger(SHOP_SENTENCES, shop)
+    except Exception:  # noqa: BLE001
+        unshop = None
     stop_timer = async_track_time_interval(hass, register, timedelta(hours=24))
 
     def unregister() -> None:
         stop_timer()
         if state["unreg"]:
             state["unreg"]()
+        if unshop:
+            unshop()
 
     return unregister
