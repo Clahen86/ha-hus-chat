@@ -42,11 +42,11 @@ MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a
 ANSWERS = {
     "da": {"dinner": "🍽️ I aften: {dish}", "no_dinner": "Der står ingen aftensmad i madplanen i dag.", "dinner_day": "🍽️ {day}: {dish}", "no_dinner_day": "Der står ingen aftensmad i madplanen {day}.", "home": "🏠 Hjemme: {list}",
            "nobody": "Der er ingen hjemme lige nu.", "unknown": "Det kan jeg ikke se lige nu.", "waste": "🗑️ {list} hentes {day}",
-           "school": "🎒 {name} har fri {day} kl. {t}", "no_school": "🎒 {name} har ingen skole {day}", "gift": "Gave til {name}", "not_yours": "Det kan kun en voksen se.", "free_day": "Ingenting – en fri dag 🙂",
+           "school": "🎒 {name} har fri {day} kl. {t}", "school_start": "🎒 {name} møder {day} kl. {t}", "school_both": "🎒 {name} {day}: skole {a}–{b}", "no_school": "🎒 {name} har ingen skole {day}", "gift": "Gave til {name}", "not_yours": "Det kan kun en voksen se.", "free_day": "Ingenting – en fri dag 🙂",
            "today": "i dag", "tomorrow": "i morgen", "days": ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"]},
     "en": {"dinner": "🍽️ Tonight: {dish}", "no_dinner": "There's no dinner in the meal plan today.", "dinner_day": "🍽️ {day}: {dish}", "no_dinner_day": "There's no dinner in the meal plan {day}.", "home": "🏠 Home: {list}",
            "nobody": "Nobody is home right now.", "unknown": "I can't see that right now.", "waste": "🗑️ {list} is collected {day}",
-           "school": "🎒 {name} is out of school {day} at {t}", "no_school": "🎒 {name} has no school {day}", "gift": "Present for {name}", "not_yours": "Only a grown-up can see that.", "free_day": "Nothing – a free day 🙂",
+           "school": "🎒 {name} is out of school {day} at {t}", "school_start": "🎒 {name} starts school {day} at {t}", "school_both": "🎒 {name} {day}: school {a}–{b}", "no_school": "🎒 {name} has no school {day}", "gift": "Present for {name}", "not_yours": "Only a grown-up can see that.", "free_day": "Nothing – a free day 🙂",
            "today": "today", "tomorrow": "tomorrow", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]},
 }
 
@@ -1073,7 +1073,7 @@ class Chat:
                 if not (adult or (me and me["id"] == who["id"])):
                     return a["not_yours"]
                 kids = [who]
-            out = []
+            out, mode = [], smart.school_mode(text)  # start / end / both
             for kid in kids:
                 first = kid["name"].split(" ")[0]
                 mine = [c for c in cals if c["kind"] == "school" and c["person"] == kid["id"]]
@@ -1085,11 +1085,14 @@ class Chat:
                     if any(g is None for g in got):
                         return a["unknown"]  # a calendar that can't be read is no free day
                     spans = [s for g in got if (s := calendars.day_span(g))]
-                    if spans and (asked or max(s[1] for s in spans) >= now):
-                        found = max(s[1] for s in spans)
+                    if spans and (asked or (min(s[0] for s in spans) if mode == "start" else max(s[1] for s in spans)) >= now):
+                        found = (min(s[0] for s in spans), max(s[1] for s in spans))
                         break
                 if found:
-                    out.append(a["school"].format(name=first, day=self._day_word(found, a), t=f"{found.hour}:{found.minute:02d}"))
+                    hm = lambda d: f"{d.hour}:{d.minute:02d}"  # noqa: E731
+                    key = {"start": "school_start", "both": "school_both"}.get(mode, "school")
+                    out.append(a[key].format(name=first, day=self._day_word(found[1], a), t=hm(found[1] if mode == "end" else found[0]),
+                                             a=hm(found[0]), b=hm(found[1])))
                 elif asked:
                     out.append(a["no_school"].format(name=first, day=self._day_word(asked, a)))
             return "\n".join(out) if out else a["unknown"]

@@ -27,7 +27,7 @@ PROMPT = ("House Chat knows the family's day: school timetables per child, dinne
           "and the family's calendars. Use its tool for when a child is out of school, what's for dinner (any day), when "
           "the bins are collected and what's on today. Answer short, in the user's language.")
 ASK = {  # the question House Chat answers itself (chat.local_answer) - in the language its words know
-    "school": "hvornår har {who} fri {day}", "dinner": "hvad skal vi spise {day}", "bins": "hvornår kommer skraldet",
+    "school": "hvordan ser {who}s skema ud {day}", "dinner": "hvad skal vi spise {day}", "bins": "hvornår kommer skraldet",
     "cheap_power": "hvornår er strømmen billigst", "my_day": "hvad skal jeg i dag",
 }
 DAYS = {"today": "i dag", "tomorrow": "i morgen", "monday": "mandag", "tuesday": "tirsdag", "wednesday": "onsdag", "thursday": "torsdag",
@@ -46,8 +46,8 @@ def is_speaker(hass: HomeAssistant, device_id: str | None) -> bool:
 class Family(llm.Tool):
     name = "hus_chat_family_day"
     integration = DOMAIN
-    description = ("The family's day from House Chat. topic: school (when a child is out of school - give the child's first "
-                   "name, or 'all'), dinner (from the meal plan), bins (next waste collection), my_day (the asker's own day). "
+    description = ("The family's day from House Chat. topic: school (a child's school day: when it starts and when it ends - "
+                   "give the child's first name, or 'all'), dinner (from the meal plan), bins (next waste collection), my_day (the asker's own day). "
                    "day: today, tomorrow or a weekday (optional).")
     parameters = vol.Schema({
         vol.Required("topic", description="school, dinner, bins or my_day"): vol.In(["school", "dinner", "bins", "my_day"]),

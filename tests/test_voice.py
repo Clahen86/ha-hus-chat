@@ -90,3 +90,17 @@ async def test_the_ai_tool(hass: HomeAssistant, chat) -> None:  # noqa: F811
     api2 = await llm.async_get_api(hass, "hus_chat", ctx2)
     r2 = await api2.async_call_tool(llm.ToolInput(tool_name="hus_chat_family_day", tool_args={"topic": "school", "child": "Lilly", "day": "wednesday"}))
     assert "13:50" not in str(getattr(r2, "data", r2))  # another child: not theirs
+
+
+async def test_when_school_starts_by_voice(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    c, _ = chat
+    hass.config.language = "da"
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "conversation", {})
+    unreg = voice.setup(hass, c)
+    now = dt_util.now()
+    mon = (now + timedelta(days=(0 - now.weekday()) % 7 or 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    _calendars(hass, {"calendar.skema_lilly": [{"summary": "DAN", "start": (mon + timedelta(hours=8)).isoformat(), "end": (mon + timedelta(hours=13, minutes=5)).isoformat()}]})
+    said = await _ask(hass, "hvornår møder Lilly på mandag", user="u-lilly")
+    assert "møder" in said and "8:00" in said
+    unreg()

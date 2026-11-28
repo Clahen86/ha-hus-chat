@@ -401,6 +401,11 @@ class Watch:
         c = self.chat.cooks.get(key)
         if not c or c["sent"]:
             return
+        today = dt_util.now().date().isoformat()
+        if self.rule("morning")["on"] and c["date"] == today and self.chat.sent_days.get("morning") != today and dt_util.now().hour < 9:
+            c["sent"] = True  # said in good morning: the cook gets when to start, everyone sees who cooks with dinner
+            self.chat._save()
+            return
         c["sent"] = True
         self.chat._save()
         text = self.t["cook"].format(kid=c["kid"], meal=c["meal"]) + (self.t["cook_at"].format(t=c["time"]) if c["time"] else "")

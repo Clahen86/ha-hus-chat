@@ -167,14 +167,17 @@ def eta_minutes(lat: float | None, lon: float | None, home_lat: float, home_lon:
 # "hvornår slutter Lilly i morgen", "skal Holly hentes i dag?" and "har Silas skole fredag" are the same question.
 WORD = re.compile(r"[\wæøåäöüé'-]+", re.I)
 SCHOOL_WORDS = {"fri", "fri?", "skole", "skolen", "slutter", "færdig", "færdige", "hentes", "hente", "henter", "hjem", "out", "school",
-                "done", "finish", "finishes", "pickup", "pick", "slutt", "ferdig", "slutar", "skola", "lektioner", "timer"}
+                "done", "finish", "finishes", "pickup", "pick", "slutt", "ferdig", "slutar", "skola", "lektioner", "timer",
+                "møder", "møde", "starter", "start", "begynder", "afsted", "afsted?", "ind", "skema", "skemaet", "starts", "begins", "dag"}
+START_WORDS = {"møder", "møde", "starter", "start", "begynder", "afsted", "ind", "starts", "begins", "møter", "börjar"}
+BOTH_WORDS = {"skema", "skemaet", "dag", "day", "timetable", "ud", "ser"}
 DINNER_WORDS = {"spise", "spiser", "mad", "aftensmad", "aftensmaden", "middag", "middagen", "dinner", "eat", "food", "maden", "aftenmad", "kvällsmat"}
 WASTE_WORDS = {"skrald", "skraldet", "skraldespand", "skraldespanden", "affald", "affaldet", "spand", "spanden", "spandene", "renovation",
                "bin", "bins", "garbage", "rubbish", "søppel", "sopor", "skraldemand", "skraldemanden", "tømmes", "tømt"}
 POWER_WORDS = {"strøm", "strømmen", "el", "elen", "elpris", "elprisen", "power", "electricity", "strøm?", "ström", "strømpris", "strømprisen"}
 CHEAP_WORDS = {"koster", "costs", "billig", "billigst", "billigste", "billigt", "cheap", "cheapest", "pris", "prisen", "lavest", "laveste", "billigare", "billigere"}
 MINE_PHRASES = re.compile(r"hvad\s+skal\s+jeg\b|hvad\s+har\s+jeg\b|mine\s+pligter|min\s+dag|what\s+do\s+i\s+have|my\s+day|my\s+chores|hva\s+skal\s+jeg", re.I)
-ALL_KIDS = {"de", "børnene", "bornene", "ungerne", "pigerne", "drengene", "they", "kids", "children", "barna", "barnen", "alle"}
+ALL_KIDS = {"de", "børnene", "børnenes", "bornene", "ungerne", "pigerne", "drengene", "they", "kids", "children", "barna", "barnen", "alle"}
 WHICH_DAY = re.compile(r"\b(i\s+dag|idag|today|i\s+morgen|imorgen|tomorrow|i\s+overmorgen|" + "|".join(DAYS) + r")\b", re.I)
 
 
@@ -216,6 +219,39 @@ def _name_in(words: list[str], names: list[str]) -> str | None:
     return best[0] if len(best) == 1 else None  # two names fit as well (Lilli, Lilly): nobody's guessed
 
 
+def school_mode(text: str) -> str:
+    """ "start" (hvornår møder Lilly), "both" (hvordan ser Lillys dag ud, Lillys skema) or "end" (hvornår har Lilly fri)."""
+    ws = {w.lower().strip("?!.,") for w in WORD.findall(text or "")}
+    if re.search(r"\bskal\s+\w+\s+(?:i\s+skole|af\s*sted)\b", text or "", re.I):
+        return "start"
+    if ws & START_WORDS and not ws & {"fri", "slutter", "færdig", "hentes", "hente"}:
+        return "start"
+    if ws & BOTH_WORDS and not ws & {"fri", "slutter", "færdig", "hentes", "hente"}:
+        return "both"
+    return "end"
+
+
+# What to bring, from the timetable: a lesson's subject (the part before the comma in Aula: "IDR, Helene ...") or a day's
+# all-day event. Said in the child's own good morning.
+BRING = (
+    (re.compile(r"^(idr|idræt|gym|pe|sport|idrott)\b", re.I), "pe"),
+    (re.compile(r"^(svø|svøm|svømning|swim|svømme|simning)", re.I), "swim"),
+    (re.compile(r"^(hdk|madkundskab|mad|home ec|hjemkundskab)\b", re.I), "food"),
+    (re.compile(r"\b(tur|udflugt|ekskursion|trip|lejrskole|excursion)\b", re.I), "trip"),
+)
+
+
+def bring(summaries: list[str]) -> list[str]:
+    """["pe", "swim"] from today's lessons - each once, in order."""
+    out: list[str] = []
+    for s in summaries:
+        head = (s or "").split(",")[0].strip()
+        for pat, what in BRING:
+            if (pat.search(head) or (what == "trip" and pat.search(s or ""))) and what not in out:
+                out.append(what)
+    return out
+
+
 def question(text: str, names: list[str] | None = None) -> tuple[str, str | None] | None:
     """What a question to the house is about, from its words: ("school", "Lilly" | "all"), ("dinner", None), ("waste",
     None), ("cheap", None), ("mine", None). None when it isn't one of them - then Assist or the AI answers."""
@@ -223,7 +259,16 @@ def question(text: str, names: list[str] | None = None) -> tuple[str, str | None
     ws = set(words)
     if not words:
         return None
-    if ws & SCHOOL_WORDS and ("fri" in ws or "skole" in ws or "skolen" in ws or "school" in ws or ws & {"slutter", "hentes", "hente", "færdig", "finish", "finishes", "done", "out"}):
+    if re.search(r"\bskal\s+\w+\s+(?:af\s*sted|i\s+skole)\b", text or "", re.I):
+        ws = ws | {"afsted"}  # "hvornår skal Lilly af sted"
+    looks = {"ser", "ud"} <= ws and bool(WHICH_DAY.search(text or "")) and not ws & {"vejret", "vejr", "weather"}  # "hvordan ser Lillys mandag ud"
+    # "hvornår starter Lilly til fodbold" is no school question: a start word counts only with school, or alone with a day
+    other = ws - START_WORDS - {"hvornår", "when", "på", "i", "on", "next", "næste", "skal", "skole", "skolen", "school", "?", "af", "sted"} - set(DAYS) \
+        - {"dag", "morgen", "overmorgen", "today", "tomorrow", "idag", "imorgen"} - {n.lower() for n in names or []} - {w + "s" for w in (n.lower() for n in names or [])}
+    if ws & START_WORDS and not ws & {"skole", "skolen", "school", "fri"} and len(other) > 0:
+        ws = ws - START_WORDS
+    if looks or ws & SCHOOL_WORDS and ("fri" in ws or "skole" in ws or "skolen" in ws or "school" in ws or "skema" in ws or "skemaet" in ws
+                                       or ws & START_WORDS or ws & {"slutter", "hentes", "hente", "færdig", "finish", "finishes", "done", "out"}):
         who = _name_in([w for w in WORD.findall(text or "")], names or []) or ("all" if ws & ALL_KIDS else None)  # a name wins over "de"
         if who:
             return "school", who

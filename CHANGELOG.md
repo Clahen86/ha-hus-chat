@@ -2,6 +2,15 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.16.0 – 2026-11-28
+
+- What to bring, from the timetable: "Bring your PE kit!", swimwear, cooking class or a trip – in the child's own good morning
+- The weather when it matters: a child gets "take a rain jacket – it rains when you come home", frost, snow or strong wind for their own school times; a bigger child for the usual times; the grown-ups one line with when it rains and which children are out of school in it. Nothing on a fine day
+- New message from school (Aula): sender and subject in the grown-ups' good morning – each message once
+- The cook gets their own line: what they cook, and when to start when Madplan tells when it must be ready
+- When school starts: "when does Lilly start on Monday?", "how does Lilly's Monday look?" – also by voice and for your AI
+- Messages fit who reads them: short with emojis for the children, plain for the bigger ones, an overview for the grown-ups
+
 ## 0.15.0 – 2026-11-28
 
 - Ask your AI about the family's day in your own words: school, dinner any day, the bins, your own day – House Chat gives Home Assistant's AI assistants a tool to look it up (turn on "House Chat" once in the assistant's settings). The same rules as in the chat: a child's school day only to that child, a grown-up or a speaker in the house
