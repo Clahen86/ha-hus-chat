@@ -40,11 +40,11 @@ MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a
 
 
 ANSWERS = {
-    "da": {"dinner": "🍽️ I aften: {dish}", "no_dinner": "Der står ingen aftensmad i madplanen i dag.", "home": "🏠 Hjemme: {list}",
+    "da": {"dinner": "🍽️ I aften: {dish}", "no_dinner": "Der står ingen aftensmad i madplanen i dag.", "dinner_day": "🍽️ {day}: {dish}", "no_dinner_day": "Der står ingen aftensmad i madplanen {day}.", "home": "🏠 Hjemme: {list}",
            "nobody": "Der er ingen hjemme lige nu.", "unknown": "Det kan jeg ikke se lige nu.", "waste": "🗑️ {list} hentes {day}",
            "school": "🎒 {name} har fri {day} kl. {t}", "no_school": "🎒 {name} har ingen skole {day}", "gift": "Gave til {name}", "not_yours": "Det kan kun en voksen se.", "free_day": "Ingenting – en fri dag 🙂",
            "today": "i dag", "tomorrow": "i morgen", "days": ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"]},
-    "en": {"dinner": "🍽️ Tonight: {dish}", "no_dinner": "There's no dinner in the meal plan today.", "home": "🏠 Home: {list}",
+    "en": {"dinner": "🍽️ Tonight: {dish}", "no_dinner": "There's no dinner in the meal plan today.", "dinner_day": "🍽️ {day}: {dish}", "no_dinner_day": "There's no dinner in the meal plan {day}.", "home": "🏠 Home: {list}",
            "nobody": "Nobody is home right now.", "unknown": "I can't see that right now.", "waste": "🗑️ {list} is collected {day}",
            "school": "🎒 {name} is out of school {day} at {t}", "no_school": "🎒 {name} has no school {day}", "gift": "Present for {name}", "not_yours": "Only a grown-up can see that.", "free_day": "Nothing – a free day 🙂",
            "today": "today", "tomorrow": "tomorrow", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]},
@@ -1027,9 +1027,10 @@ class Chat:
                 return True
         return False
 
-    async def local_answer(self, user_id: str | None, text: str) -> str | None:
+    async def local_answer(self, user_id: str | None, text: str, speaker: bool = False) -> str | None:
         """The house's own questions, answered from what it already knows - before Assist or an AI (smart.question).
-        A child's school day only to that child and the grown-ups. None: not one of them, or nothing to say."""
+        A child's school day only to that child and the grown-ups - or said aloud by a speaker in the house (speaker: no
+        one signed in), like the timetable on the fridge. None: not one of them, or nothing to say."""
         from . import calendars, morning, smart
 
         people = self.people()
@@ -1040,7 +1041,10 @@ class Chat:
         w, a, now = morning.words(self.hass), ANSWERS.get((self.hass.config.language or "en").split("-")[0], ANSWERS["en"]), dt_util.now()
         me = next((p for p in people if p["id"] == self.sender_of(user_id)), None)
         if kind == "dinner":
-            line = morning.dinner_line(self.hass, {**w, "dinner": "{dish}"}, now.date().isoformat())
+            day = smart.which_day(text, now) or now  # "hvad skal vi spise i morgen?"
+            line = morning.dinner_line(self.hass, {**w, "dinner": "{dish}"}, day.date().isoformat())
+            if day.date() != now.date():
+                return a["dinner_day"].format(dish=line, day=self._day_word(day, a)) if line else a["no_dinner_day"].format(day=self._day_word(day, a))
             return a["dinner"].format(dish=line) if line else a["no_dinner"]
         if kind == "cheap":
             return morning.cheap_line(self.hass, w, now) or a["unknown"]
@@ -1056,7 +1060,7 @@ class Chat:
             same = [e["summary"] for e in nxt if e["start"].date() == first["start"].date() and e["summary"]]
             return a["waste"].format(list=", ".join(dict.fromkeys(same)), day=self._day_word(first["start"], a))
         if kind == "school":
-            adult = bool(me) and not str(user_id or "").startswith("link:") and await self.is_adult(me)
+            adult = speaker or (bool(me) and not str(user_id or "").startswith("link:") and await self.is_adult(me))
             asked = smart.which_day(text, now)  # "på onsdag", "i morgen" - else the next school day
             if arg == "all":  # "hvornår har børnene fri?": every child with a timetable - for the grown-ups
                 if not adult:
@@ -1066,7 +1070,7 @@ class Chat:
                 who = next((p for p in people if p["name"].split(" ")[0].lower() == str(arg or "").lower()), None)
                 if not who:
                     return None  # not a name in the family: Assist may know
-                if not (me and (me["id"] == who["id"] or adult)):
+                if not (adult or (me and me["id"] == who["id"])):
                     return a["not_yours"]
                 kids = [who]
             out = []

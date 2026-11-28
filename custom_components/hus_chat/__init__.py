@@ -68,6 +68,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
     watch = Watch(hass, chat)  # what the house writes by itself
     watch.start()
     entry.async_on_unload(watch.stop)
+    from . import voice
+
+    if unregister := voice.setup(hass, chat):  # the house's own questions by voice, before the AI
+        entry.async_on_unload(unregister)
 
     async def send(call: ServiceCall) -> ServiceResponse:
         image = None

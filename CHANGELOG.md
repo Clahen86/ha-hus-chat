@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.14.2 – 2026-11-28
+
+- Ask by voice: Assist on the phone or a speaker now answers the house's own questions from House Chat first – "when is Lilly out of school on Wednesday?", "what's for dinner tomorrow?", "when are the bins collected?" – everything else goes on to your AI as before. Nothing to set up (it needs "prefer handling commands locally", on by default)
+- "What's for dinner tomorrow?" gives tomorrow's dinner, not today's
+
 ## 0.14.1 – 2026-11-28
 
 - Ask the house your own way: "when is Lilly out of school on Wednesday?", "Lilly off Wednesday?", "does Holly have school tomorrow?" or "when are the kids out of school?" – by the words in it, in any order, and a small slip in a name is fine. The day you ask about is the day you get (it said Monday before)
