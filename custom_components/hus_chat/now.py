@@ -19,9 +19,11 @@ DINNER_UNTIL = 20
 
 WORDS = {
     "da": {"waiting": "venter", "taken": "{name} tager den", "onway": "{name} er på vej hjem", "eta": "ca. {t}",
-           "dinner": "Aftensmad", "eat": "{n} spiser med", "eat1": "1 spiser med"},
+           "dinner": "Aftensmad", "eat": "{n} spiser med", "eat1": "1 spiser med",
+           "car_ready": "Bilen er klar", "car_now": "Bilen lader nu", "car_at": "Bilen lader kl. {t}", "ready": "klar {t}"},
     "en": {"waiting": "waiting", "taken": "{name} takes it", "onway": "{name} is on the way home", "eta": "about {t}",
-           "dinner": "Dinner", "eat": "{n} eat with", "eat1": "1 eats with"},
+           "dinner": "Dinner", "eat": "{n} eat with", "eat1": "1 eats with",
+           "car_ready": "The car is ready", "car_now": "The car is charging", "car_at": "The car charges at {t}", "ready": "ready {t}"},
 }
 
 
@@ -55,7 +57,39 @@ def cards(chat: Any) -> list[dict[str, Any]]:
         if yes:
             parts.append(w["eat1"] if yes == 1 else w["eat"].format(n=yes))
         out.append({"key": "dinner", "icon": "🍽️", "text": " · ".join(parts), "msg": m["id"]})
+    if car := car_card(chat.hass, w):
+        out.append(car)
     return out
+
+
+def car_card(hass: Any, w: dict[str, str]) -> dict[str, Any] | None:
+    """The car from Energy Pilot, only while it's plugged in: ready, charging now, or when it will charge."""
+    ep = next((s for s in hass.states.async_all("sensor") if isinstance(s.attributes.get("ev"), dict) and isinstance(s.attributes.get("roles"), dict)), None)
+    if ep is None:
+        return None
+    roles, ev = ep.attributes["roles"], ep.attributes["ev"]
+    plug = hass.states.get(roles.get("ev_plug") or "")
+    if not plug or plug.state != "on":
+        return None
+    soc, target = ev.get("soc"), ev.get("target")
+    pct = f" · {round(soc)} %" if isinstance(soc, (int, float)) else ""
+    pw = hass.states.get(roles.get("ev_power") or "")
+    try:
+        power = float(pw.state) if pw else 0.0
+    except (TypeError, ValueError):
+        power = 0.0
+    if isinstance(soc, (int, float)) and isinstance(target, (int, float)) and soc >= target - 0.5:
+        return {"key": "car", "icon": "🚗", "text": w["car_ready"] + pct, "msg": None}
+    if power > 500:
+        return {"key": "car", "icon": "🚗", "text": w["car_now"] + pct, "msg": None}
+    now = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)  # in UTC: the two 02:00 the night the clocks go back
+    for h in ep.attributes.get("plan") or []:
+        t = dt_util.parse_datetime(str(h.get("t") or ""))
+        if h.get("car") and t and t.tzinfo and dt_util.as_utc(t) >= now:
+            t = dt_util.as_local(t)
+            ready = f" · {w['ready'].format(t=ev['ready'])}" if ev.get("ready") else ""
+            return {"key": "car", "icon": "🚗", "text": w["car_at"].format(t=f"{t.hour}:{t.minute:02d}") + ready, "msg": None}
+    return None
 
 
 def cards_for(chat: Any, all_cards: list[dict[str, Any]], user_id: str, admin: bool = False) -> list[dict[str, Any]]:

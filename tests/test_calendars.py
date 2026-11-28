@@ -51,7 +51,7 @@ async def test_each_gets_only_their_own_morning(hass: HomeAssistant, chat) -> No
     async def adult(p):
         return p.get("user_id") in admins
     with patch.object(type(c), "is_adult", side_effect=adult), patch.object(morning, "weather_line", return_value=None):
-        got = {p["id"]: text for p, _t, text in await morning.for_everyone(hass, c, c.people())}
+        got = {p["id"]: text for p, _t, text, _g in await morning.for_everyone(hass, c, c.people())}
     lilly, wictor, claus = got["person.lilly"], got["person.wictor"], got["user.u-claus"]
     assert "8:00–13:30" in lilly and "Melina" in lilly and "14:00" not in lilly and "Tandlæge" not in lilly
     assert "8:15–14:00" in wictor and "Melina" not in wictor and "13:30" not in wictor
@@ -145,3 +145,74 @@ def test_every_day_keeps_its_clock_over_summer_time() -> None:
         for _ in range(4):
             rem["when"] = Chat._next(rem)
         assert datetime.fromtimestamp(rem["when"], zoneinfo.ZoneInfo("Europe/Copenhagen")).strftime("%H:%M") == "02:30"
+
+
+async def test_school_on_the_day_asked_and_all_children(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    c, _ = chat
+    now = dt_util.now()
+    wed = (now + timedelta(days=(2 - now.weekday()) % 7 or 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    nxt = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    if nxt.date() == wed.date():
+        nxt += timedelta(days=1)
+    _calendars(hass, {"calendar.skema_lilly": [{"summary": "Dansk", "start": (nxt + timedelta(hours=8)).isoformat(), "end": (nxt + timedelta(hours=12)).isoformat()},
+                                               {"summary": "Matematik", "start": (wed + timedelta(hours=8)).isoformat(), "end": (wed + timedelta(hours=13, minutes=50)).isoformat()}],
+                      "calendar.skema_wictor": [{"summary": "Idræt", "start": (wed + timedelta(hours=8)).isoformat(), "end": (wed + timedelta(hours=15)).isoformat()}]})
+
+    async def adult(p):
+        return p.get("user_id") == "u-claus"
+    with patch.object(type(c), "is_adult", side_effect=adult):
+        a = await c.local_answer("u-claus", "hvornår har Lilly fri på onsdag?")
+        assert "13:50" in a and "12:00" not in a
+        both = await c.local_answer("u-claus", "hvornår har børnene fri onsdag")
+        assert "Lilly" in both and "13:50" in both and "Wictor" in both and "15:00" in both
+        assert "fri" not in await c.local_answer("u-lilly", "hvornår har børnene fri onsdag") or "voksen" in await c.local_answer("u-lilly", "hvornår har børnene fri onsdag")
+
+
+async def test_a_present_with_one_tap(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    c, _ = chat
+    mad = async_mock_service(hass, "madplan", "egen_vare")
+    m = await c.post(HOUSE, "🎁 Om en uge: Melina", kind="house", title="Godmorgen Lilly", to=["person.lilly"])
+    m["gifts"] = ["Melina"]
+    assert not await c.gift(m["id"], "u-wictor", "Melina")  # not Wictor's message
+    assert await c.gift(m["id"], "u-lilly", "Melina")
+    assert not await c.gift(m["id"], "u-lilly", "Melina")  # once
+    assert [x.data["tekst"] for x in mad] == ["Gave til Melina"] or [x.data["tekst"] for x in mad] == ["Present for Melina"]
+
+
+async def test_the_week_ahead_only_what_is_theirs(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    c, _ = chat
+    now = dt_util.now()
+    mon = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    _calendars(hass, {"calendar.skema_lilly": [{"summary": "Dansk", "start": (mon + timedelta(days=d, hours=8)).isoformat(),
+                                                "end": (mon + timedelta(days=d, hours=13)).isoformat()} for d in (0, 1, 2, 4)],
+                      "calendar.affald": [{"summary": "Papir", "start": (mon + timedelta(days=2, hours=7)).isoformat(), "end": (mon + timedelta(days=2, hours=15)).isoformat()}],
+                      "calendar.fodselsdage_lilly": [{"summary": "Lilly: 🎂 Melina", "start": (mon + timedelta(days=3)).date().isoformat(), "end": (mon + timedelta(days=4)).date().isoformat()}]})
+
+    async def adult(p):
+        return p.get("user_id") == "u-claus"
+    with patch.object(type(c), "is_adult", side_effect=adult):
+        got = {p["id"]: text for p, _t, text, _g in await morning.week_for_everyone(hass, c, c.people(), now)}
+    assert "Melina" in got["person.lilly"] and "Papir" not in got["person.lilly"]
+    assert "Papir" in got["user.u-claus"] and "Lilly" in got["user.u-claus"] and "Melina" not in got["user.u-claus"]
+    assert "person.wictor" not in got or "Melina" not in got["person.wictor"]
+
+
+async def test_the_car_on_lige_nu(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    from custom_components.hus_chat import now as now_mod
+
+    c, _ = chat
+    w = now_mod.words(hass)
+    start = (dt_util.now() + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+    attrs = {"roles": {"ev_plug": "binary_sensor.plug", "ev_power": "sensor.ev_w"}, "ev": {"soc": None, "target": 80, "ready": "06:00"},
+             "plan": [{"t": start.isoformat(), "car": True}]}
+    hass.states.async_set("sensor.energipilot", "hold", attrs)
+    hass.states.async_set("binary_sensor.plug", "off")
+    assert now_mod.car_card(hass, w) is None  # not plugged in: nothing
+    hass.states.async_set("binary_sensor.plug", "on")
+    assert f"{start.hour}:00" in now_mod.car_card(hass, w)["text"]
+    hass.states.async_set("sensor.ev_w", "7000")
+    assert now_mod.car_card(hass, w)["text"] == w["car_now"]
+    hass.states.async_set("sensor.energipilot", "hold", {**attrs, "ev": {"soc": 80, "target": 80}})
+    assert w["car_ready"] in now_mod.car_card(hass, w)["text"]

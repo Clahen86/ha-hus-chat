@@ -67,14 +67,15 @@ def find(hass: HomeAssistant, people: list[dict[str, Any]]) -> list[dict[str, An
     return out
 
 
-async def events(hass: HomeAssistant, entity_id: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
-    """The calendar's events between start and end: [{summary, start, end, all_day}] (local datetimes)."""
+async def events(hass: HomeAssistant, entity_id: str, start: datetime, end: datetime, strict: bool = False) -> list[dict[str, Any]] | None:
+    """The calendar's events between start and end: [{summary, start, end, all_day}] (local datetimes). A calendar that
+    can't be read gives [] - or None with strict (then "no school" isn't said for a calendar that failed)."""
     try:
         res = await hass.services.async_call("calendar", "get_events", {"entity_id": entity_id, "start_date_time": start.isoformat(),
                                              "end_date_time": end.isoformat()}, blocking=True, return_response=True)
     except Exception:  # noqa: BLE001 - a calendar that can't be read is left out
         _LOGGER.debug("Could not read %s", entity_id, exc_info=True)
-        return []
+        return None if strict else []
     out = []
     for e in ((res or {}).get(entity_id) or {}).get("events", []):
         s, en = str(e.get("start") or ""), str(e.get("end") or "")

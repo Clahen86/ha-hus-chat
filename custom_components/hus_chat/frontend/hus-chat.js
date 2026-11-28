@@ -23,7 +23,7 @@ const T = {
     clear: "Ryd hele chatten", clearH: "Sletter alle beskeder, billeder og lydbeskeder for alle. Kan ikke fortrydes.", clearAsk: "Slette hele chatten for alle?",
     tomorrow: "I morgen", more: "Mere", pollT: "Afstemning", pollQ: "Spørgsmål", pollOpt: "Svar {n}", pollAdd: "+ Svar", pollSend: "Send afstemning", votes: "{n} stemmer", vote1: "1 stemme",
     onway: "På vej hjem", shopT: "Indkøbsliste", shopAdd: "Tilføj vare", shopNone: "Ingen indkøbsliste i Home Assistant. Tilføj integrationen »Indkøbsliste«.", shopEmpty: "Listen er tom 🎉",
-    onShop: "🛒 På indkøbslisten", remindAt: "⏰ Påmindelse {when}", remindHome: "⏰ Når du kommer hjem", pin: "Fastgør", unpin: "Fjern fastgørelse", search: "Søg i beskeder", searchNone: "Ingen beskeder passer",
+    onShop: "🛒 På indkøbslisten", remindAt: "⏰ Påmindelse {when}", remindHome: "⏰ Når du kommer hjem", gift: "Køb gave til {name}", giftDone: "Gave til {name} er på listen", pin: "Fastgør", unpin: "Fjern fastgørelse", search: "Søg i beskeder", searchNone: "Ingen beskeder passer",
     speakT: "Læs højt", speakH: "Husets beskeder siges på en højttaler, når nogen er hjemme – ikke om natten, undtagen alarmer.", speakPick: "– vælg højttaler –", speakTest: "Prøv", speakNoTts: "Ingen tale (TTS) er sat op i Home Assistant.",
     apps: "Chatten som app – uden login", appsH: "Til børn og andre uden en Home Assistant-konto. De åbner linket og vælger »Føj til hjemmeskærm«. Linket giver kun adgang til chatten.",
     appsLocal: "Kun hjemme: Home Assistant har ingen adresse udefra (Nabu Casa).", appName: "Navn", appWho: "Hvem er det?", appAlone: "Kun med navnet", appNew: "Lav link",
@@ -45,7 +45,7 @@ const T = {
     clear: "Clear the whole chat", clearH: "Deletes every message, picture and voice message for everyone. Can't be undone.", clearAsk: "Delete the whole chat for everyone?",
     tomorrow: "Tomorrow", more: "More", pollT: "Poll", pollQ: "Question", pollOpt: "Answer {n}", pollAdd: "+ Answer", pollSend: "Send poll", votes: "{n} votes", vote1: "1 vote",
     onway: "On my way home", shopT: "Shopping list", shopAdd: "Add item", shopNone: "No shopping list in Home Assistant. Add the “Shopping list” integration.", shopEmpty: "The list is empty 🎉",
-    onShop: "🛒 On the shopping list", remindAt: "⏰ Reminder {when}", remindHome: "⏰ When you get home", pin: "Pin", unpin: "Unpin", search: "Search messages", searchNone: "No messages match",
+    onShop: "🛒 On the shopping list", remindAt: "⏰ Reminder {when}", remindHome: "⏰ When you get home", gift: "Buy a present for {name}", giftDone: "Present for {name} is on the list", pin: "Pin", unpin: "Unpin", search: "Search messages", searchNone: "No messages match",
     speakT: "Read aloud", speakH: "The house's messages are said on a speaker when somebody is home – not at night, except alarms.", speakPick: "– pick a speaker –", speakTest: "Try", speakNoTts: "No speech (TTS) is set up in Home Assistant.",
     apps: "The chat as an app – no login", appsH: "For children and others without a Home Assistant account. They open the link and choose “Add to Home Screen”. The link only opens the chat.",
     appsLocal: "Only at home: Home Assistant has no outside address (Nabu Casa).", appName: "Name", appWho: "Who is it?", appAlone: "Just the name", appNew: "Make link",
@@ -342,6 +342,9 @@ class HusChatView extends HTMLElement {
       body = `<div class="card${m.urgent && !m.taken ? " hot" : ""}">${m.title ? `<div class="h">${bang}${esc(m.title)}</div>` : ""}${m.text ? `<div class="${m.title ? "s" : "h"}">${m.title ? "" : bang}${esc(m.text)}</div>` : ""}
         ${m.poll ? `<div class="poll" style="margin-top:6px">${this.pollHtml(m)}</div>` : ""}
         ${m.image ? `<img class="pic" style="margin-top:8px" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="">` : ""}
+        ${(m.gifts || []).length ? `<div class="chips">${m.gifts.map((n) => (m.gifts_done || []).includes(n)
+          ? `<span class="chip">✓ ${esc(t.giftDone.replace("{name}", n))}</span>`
+          : `<button class="chip go" data-a="gift" data-id="${esc(m.id)}" data-n="${esc(n)}">🎁 ${esc(t.gift.replace("{name}", n))}</button>`).join("")}</div>` : ""}
         ${m.take && !m.taken ? `<div class="chips">${(pl => pl ? `<button class="chip go" data-a="pligt" data-url="${esc(pl)}">${t.takePligt}</button>`
           : `<button class="chip go" data-a="take" data-id="${esc(m.id)}">${t.take}</button>`)(this.pligtFor(m))}</div>` : ""}</div>
         ${m.taken ? `<div class="done">${t.took.replace("{name}", m.taken.by === this.me?.id ? t.you : esc(m.taken.name || "?"))}</div>` : ""}`;
@@ -813,6 +816,11 @@ class HusChatView extends HTMLElement {
       this.extra("poll", { question, options }).then(() => { this.sheet = null; this.paintSheet(); }).catch(() => this.error(this.t.failed));
     }
     else if (a === "vote") this.extra("vote", { message: b.dataset.id, option: Number(b.dataset.o) }).catch(() => this.error(this.t.failed));
+    else if (a === "gift") {
+      b.disabled = true;
+      const fail = () => { b.disabled = false; this.error(this.t.failed); };
+      this.extra("gift", { message: b.dataset.id, name: b.dataset.n }).then((r) => { if (!r || !r.ok) fail(); }).catch(fail);
+    }
     else if (a === "onway") { this.shadowRoot.querySelector(".acts")?.remove(); this.extra("onway").catch(() => this.error(this.t.failed)); }
     else if (a === "shop") { this.shadowRoot.querySelector(".acts")?.remove(); this.sheet = "shop"; this.paintSheet(); this.shopDo(); }
     else if (a === "shopadd") { const i = this.$("[data-shopadd]"); if (i?.value.trim()) this.shopDo({ add: i.value }); }

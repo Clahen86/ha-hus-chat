@@ -170,8 +170,40 @@ async def test_every_week_comes_back(hass: HomeAssistant, chat) -> None:  # noqa
     assert len(c.reminders) == 1 and 6.9 * 86400 < c.reminders[0]["when"] - first < 7.1 * 86400
 
 
-async def test_the_house_answers_its_own_questions(hass: HomeAssistant, chat) -> None:  # noqa: F811
+async def test_who_is_home_is_left_to_assist(hass: HomeAssistant, chat) -> None:  # noqa: F811
     c, _ = chat
-    m = await c.ask_house("u-claus", "Hvem er hjemme?")
-    assert "Lilly" in m["text"] and "Claus" in m["text"] and "Wictor" not in m["text"] and m["to"] == ["user.u-claus"]
+    assert await c.local_answer("u-claus", "Hvem er hjemme?") is None  # presence isn't reliable: not answered by the house
     assert await c.local_answer("u-claus", "Tænd lyset i stuen") is None  # Assist's job
+
+
+def test_many_ways_to_ask() -> None:
+    names = ["Lilly", "Holly", "Silas"]
+    for q in ("hvornår har Lilly fri på onsdag?", "Lilly fri onsdag?", "hvornår slutter Lilly i morgen", "skal lilly hentes i dag?",
+              "har Lilly skole fredag", "hvornår har lily fri", "Hvornår er Lillys skole færdig?"):
+        assert smart.question(q, names) == ("school", "Lilly"), q
+    assert smart.question("hvornår har børnene fri på fredag", names) == ("school", "all")
+    for q in ("hvad skal vi spise?", "hvad er der til aftensmad", "hvad får vi at spise i aften", "mad i aften?"):
+        assert smart.question(q, names) == ("dinner", None), q
+    for q in ("hvornår er der skrald", "hvilken spand skal ud?", "hvornår kommer skraldemanden"):
+        assert smart.question(q, names) == ("waste", None), q
+    assert smart.question("hvornår er strømmen billigst", names) == ("cheap", None)
+    assert smart.question("er døren låst?", names) is None
+
+
+def test_the_day_asked_about() -> None:
+    from datetime import datetime
+
+    sat = datetime(2026, 11, 28, 15, 0)  # a Saturday
+    assert smart.which_day("hvornår har Lilly fri på onsdag", sat).date().isoformat() == "2026-12-02"
+    assert smart.which_day("i morgen", sat).date().isoformat() == "2026-11-29"
+    assert smart.which_day("hvornår har Lilly fri", sat) is None
+
+
+def test_a_name_wins_over_they_and_two_alike_are_not_guessed() -> None:
+    from datetime import datetime
+
+    assert smart.question("hvornår har Lilly fri de dage hun har idræt", ["Lilly", "Holly"]) == ("school", "Lilly")
+    assert smart.question("hvornår har Lill fri", ["Lilli", "Lilly"]) is None
+    wed = datetime(2026, 12, 2, 9, 0)
+    assert smart.which_day("hvornår har Lilly fri næste onsdag", wed).date().isoformat() == "2026-12-09"
+    assert smart.which_day("hvornår har Lilly fri onsdag", wed).date().isoformat() == "2026-12-02"

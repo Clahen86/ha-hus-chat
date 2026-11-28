@@ -162,7 +162,7 @@ async def common_lines(hass: HomeAssistant, now: datetime, chat: Any, cals: list
 
 
 async def own_lines(hass: HomeAssistant, chat: Any, p: dict[str, Any], adult: bool, cals: list[dict[str, Any]],
-                    now: datetime, w: dict[str, str], chores: dict[str, int] | None) -> list[str]:
+                    now: datetime, w: dict[str, str], chores: dict[str, int] | None, gifts: list[str] | None = None) -> list[str]:
     """Only what is this person's: a child their own school day, birthdays and chores; a grown-up when each child is
     out of school, the family's calendar today, everyone's chores and the cheapest power."""
     from . import calendars
@@ -203,11 +203,13 @@ async def own_lines(hass: HomeAssistant, chat: Any, p: dict[str, Any], adult: bo
                 soon.append(_who(e["summary"], first))
     lines.append(w["bday"].format(list=", ".join(today)) if today else None)
     lines.append(w["bday_soon"].format(list=", ".join(soon)) if soon else None)
+    if gifts is not None:
+        gifts += [n for n in soon if n not in gifts]  # "Køb gave" under the message
     return [x for x in lines if x]
 
 
-async def for_everyone(hass: HomeAssistant, chat: Any, people: list[dict[str, Any]], now: datetime | None = None) -> list[tuple[dict[str, Any], str, str]]:
-    """[(person, title, text)] - one good morning each, only with what is theirs. Nobody with nothing to say."""
+async def for_everyone(hass: HomeAssistant, chat: Any, people: list[dict[str, Any]], now: datetime | None = None) -> list[tuple[dict[str, Any], str, str, list[str]]]:
+    """[(person, title, text, gifts)] - one good morning each, only with what is theirs. Nobody with nothing to say."""
     from . import calendars
 
     now, w = now or dt_util.now(), words(hass)
@@ -220,7 +222,73 @@ async def for_everyone(hass: HomeAssistant, chat: Any, people: list[dict[str, An
         chores = None
     out = []
     for p in people:
-        lines = common + await own_lines(hass, chat, p, await chat.is_adult(p), cals, now, w, chores)
+        gifts: list[str] = []
+        lines = common + await own_lines(hass, chat, p, await chat.is_adult(p), cals, now, w, chores, gifts)
         if lines:
-            out.append((p, w["title_p"].format(name=(p.get("name") or "").split(" ")[0]).strip(), "\n".join(lines)))
+            out.append((p, w["title_p"].format(name=(p.get("name") or "").split(" ")[0]).strip(), "\n".join(lines), gifts))
+    return out
+
+
+# ---------- the week ahead (Sunday evening) ----------
+DAY_SHORT = {"da": ["man", "tir", "ons", "tor", "fre", "lør", "søn"], "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
+WEEK_WORDS = {
+    "da": {"title": "📅 Ugen der kommer", "food": "🍽️ {list}", "waste": "🗑️ {list}", "free": "🎒 Ingen skole: {list}", "bday": "🎂 {list}"},
+    "en": {"title": "📅 The week ahead", "food": "🍽️ {list}", "waste": "🗑️ {list}", "free": "🎒 No school: {list}", "bday": "🎂 {list}"},
+}
+
+
+async def week_for_everyone(hass: HomeAssistant, chat: Any, people: list[dict[str, Any]], now: datetime | None = None) -> list[tuple[dict[str, Any], str, str, list[str]]]:
+    """Sunday evening, one each: the week's dinners, the bins, schooldays without school, birthdays - only what is theirs
+    (a child their own; the grown-ups every child's). Good morning then only says what is today."""
+    from . import calendars
+
+    now = now or dt_util.now()
+    lang = (hass.config.language or "en").split("-")[0]
+    ww, short = WEEK_WORDS.get(lang, WEEK_WORDS["en"]), DAY_SHORT.get(lang, DAY_SHORT["en"])
+    start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)  # Monday
+    days = [start + timedelta(days=i) for i in range(7)]
+    cals = calendars.find(hass, chat.people())
+    names = {x["id"]: (x.get("name") or "").split(" ")[0] for x in chat.people()}
+    w = words(hass)
+    food = []
+    for d in days:
+        dish = dinner_line(hass, {**w, "dinner": "{dish}", "cook": "{name}"}, d.date().isoformat())
+        if dish:
+            plain = re.sub(r"\s*\(.*?\)", "", dish)  # without "(Silas laver den)"
+            food.append(f"{short[d.weekday()]} {plain}")
+    bins = []
+    for c in (c for c in cals if c["kind"] == "waste"):
+        for e in await calendars.events(hass, c["entity_id"], start, start + timedelta(days=7)):
+            if e["summary"]:
+                bins.append(f"{short[e['start'].weekday()]} {e['summary']}")
+    busy: dict[str, set] = {}  # person -> days with lessons, from all their timetables
+    for c in (c for c in cals if c["kind"] == "school" and c["person"]):
+        evs = await calendars.events(hass, c["entity_id"], start, start + timedelta(days=7), strict=True)
+        if evs is None:
+            busy[c["person"]] = {d.date() for d in days}  # can't be read: no "no school" guessed
+            continue
+        if evs:
+            busy.setdefault(c["person"], set()).update(e["start"].date() for e in evs if not e["all_day"])
+    # no timetable this week at all (a holiday week): nothing to say
+    free = {k: [short[d.weekday()] for d in days[:5] if d.date() not in v] for k, v in busy.items() if v}
+    out = []
+    for p in people:
+        adult = await chat.is_adult(p)
+        first = names.get(p["id"], "")
+        lines = [ww["food"].format(list=" · ".join(food)) if food else None]
+        if adult:
+            lines.append(ww["waste"].format(list=" · ".join(dict.fromkeys(bins))) if bins else None)
+            nf = [f"{names.get(k, '?')} {', '.join(v)}" for k, v in free.items() if v]
+            lines.append(ww["free"].format(list=" · ".join(nf)) if nf else None)
+        elif free.get(p["id"]):
+            lines.append(ww["free"].format(list=", ".join(free[p["id"]])))
+        bd = []
+        for c in (c for c in cals if c["kind"] == "birthday" and (c["person"] == p["id"] or (adult and not c["person"]))):
+            for e in await calendars.events(hass, c["entity_id"], start, start + timedelta(days=7)):
+                if e["summary"]:
+                    bd.append(f"{short[e['start'].weekday()]} {_who(e['summary'], first)}")
+        lines.append(ww["bday"].format(list=" · ".join(bd)) if bd else None)
+        lines = [x for x in lines if x]
+        if lines:
+            out.append((p, ww["title"], "\n".join(lines), []))
     return out

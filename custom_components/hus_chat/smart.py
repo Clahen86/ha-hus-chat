@@ -163,19 +163,76 @@ def eta_minutes(lat: float | None, lon: float | None, home_lat: float, home_lon:
 
 
 # ---------- questions the house answers itself (before Assist) ----------
-QUESTIONS = (
-    ("dinner", re.compile(r"hvad\s+skal\s+vi\s+(?:have\s+(?:at\s+)?)?spise|hvad\s+er\s+der\s+til\s+aftensmad|hvad\s+får\s+vi\s+at\s+spise|what'?s\s+for\s+dinner|hva\s+skal\s+vi\s+spise", re.I)),
-    ("home", re.compile(r"hvem\s+er\s+(?:hjemme|her)|who'?s\s+(?:at\s+)?home|who\s+is\s+(?:at\s+)?home|hvem\s+er\s+hjemme", re.I)),
-    ("waste", re.compile(r"(?:hvornår|hvorn[aå]r|when)\b.*\b(?:skrald|affald|spand|renovation|bin|bins|garbage|søppel)", re.I)),
-    ("school", re.compile(r"(?:hvornår|when)\s+(?:har|is|får)\s+(\w+)\s+(?:fri|out|done|færdig)", re.I)),
-    ("cheap", re.compile(r"(?:hvornår|when)\b.*\b(?:strøm\w*|strom\w*|el|power|electricity)\b.*\b(?:billig|cheap)|billigst\s+strøm|cheapest\s+power", re.I)),
-    ("mine", re.compile(r"hvad\s+skal\s+jeg\s+(?:nå|naa|lave|gøre)\s+i\s+dag|mine\s+pligter|what\s+do\s+i\s+have\s+(?:to\s+do\s+)?today", re.I)),
-)
+# By the words in it, in any order - not one fixed sentence: "Hvornår har Lilly fri på onsdag?", "Lilly fri onsdag?",
+# "hvornår slutter Lilly i morgen", "skal Holly hentes i dag?" and "har Silas skole fredag" are the same question.
+WORD = re.compile(r"[\wæøåäöüé'-]+", re.I)
+SCHOOL_WORDS = {"fri", "fri?", "skole", "skolen", "slutter", "færdig", "færdige", "hentes", "hente", "henter", "hjem", "out", "school",
+                "done", "finish", "finishes", "pickup", "pick", "slutt", "ferdig", "slutar", "skola", "lektioner", "timer"}
+DINNER_WORDS = {"spise", "spiser", "mad", "aftensmad", "aftensmaden", "middag", "middagen", "dinner", "eat", "food", "maden", "aftenmad", "kvällsmat"}
+WASTE_WORDS = {"skrald", "skraldet", "skraldespand", "skraldespanden", "affald", "affaldet", "spand", "spanden", "spandene", "renovation",
+               "bin", "bins", "garbage", "rubbish", "søppel", "sopor", "skraldemand", "skraldemanden", "tømmes", "tømt"}
+POWER_WORDS = {"strøm", "strømmen", "el", "elen", "elpris", "elprisen", "power", "electricity", "strøm?", "ström", "strømpris", "strømprisen"}
+CHEAP_WORDS = {"koster", "costs", "billig", "billigst", "billigste", "billigt", "cheap", "cheapest", "pris", "prisen", "lavest", "laveste", "billigare", "billigere"}
+MINE_PHRASES = re.compile(r"hvad\s+skal\s+jeg\b|hvad\s+har\s+jeg\b|mine\s+pligter|min\s+dag|what\s+do\s+i\s+have|my\s+day|my\s+chores|hva\s+skal\s+jeg", re.I)
+ALL_KIDS = {"de", "børnene", "bornene", "ungerne", "pigerne", "drengene", "they", "kids", "children", "barna", "barnen", "alle"}
+WHICH_DAY = re.compile(r"\b(i\s+dag|idag|today|i\s+morgen|imorgen|tomorrow|i\s+overmorgen|" + "|".join(DAYS) + r")\b", re.I)
 
 
-def question(text: str) -> tuple[str, str | None] | None:
-    """("school", "Holly") for "hvornår har Holly fri?" - None when it isn't one of the house's own questions."""
-    for kind, pat in QUESTIONS:
-        if m := pat.search(text or ""):
-            return kind, (m.group(1) if m.groups() else None)
+def which_day(text: str, today: datetime) -> datetime | None:
+    """The day a question asks about: "på onsdag" -> next Wednesday (today if it's Wednesday), "i morgen", "i dag".
+    None: no day given."""
+    m = WHICH_DAY.search(text or "")
+    if not m:
+        return None
+    w = re.sub(r"\s+", " ", m.group(1).lower())
+    base = today.replace(hour=0, minute=0, second=0, microsecond=0)
+    if w in ("i dag", "idag", "today"):
+        return base
+    if w in ("i morgen", "imorgen", "tomorrow"):
+        return base + timedelta(days=1)
+    if w == "i overmorgen":
+        return base + timedelta(days=2)
+    ahead = (DAYS[w] - today.weekday()) % 7
+    if ahead == 0 and re.search(r"\b(?:næste|nästa|neste|next)\s+" + re.escape(w), text or "", re.I):
+        ahead = 7  # "næste onsdag" on a Wednesday is next week's
+    return base + timedelta(days=ahead)
+
+
+def _name_in(words: list[str], names: list[str]) -> str | None:
+    """A family member's first name among the words - also with a small slip ("Lily", "Lillys", "hollys")."""
+    from difflib import SequenceMatcher
+
+    scores: dict[str, float] = {}
+    for w in words:
+        w2 = re.sub(r"(s|'s)$", "", w) if len(w) > 3 else w
+        for n in names:
+            r = max(SequenceMatcher(None, w.lower(), n.lower()).ratio(), SequenceMatcher(None, w2.lower(), n.lower()).ratio())
+            if r >= 0.85 or (r >= 0.75 and len(n) >= 5):
+                scores[n] = max(scores.get(n, 0.0), r)
+    if not scores:
+        return None
+    top = max(scores.values())
+    best = [n for n, r in scores.items() if r == top]
+    return best[0] if len(best) == 1 else None  # two names fit as well (Lilli, Lilly): nobody's guessed
+
+
+def question(text: str, names: list[str] | None = None) -> tuple[str, str | None] | None:
+    """What a question to the house is about, from its words: ("school", "Lilly" | "all"), ("dinner", None), ("waste",
+    None), ("cheap", None), ("mine", None). None when it isn't one of them - then Assist or the AI answers."""
+    words = [w.lower().strip("?!.,") for w in WORD.findall(text or "")]
+    ws = set(words)
+    if not words:
+        return None
+    if ws & SCHOOL_WORDS and ("fri" in ws or "skole" in ws or "skolen" in ws or "school" in ws or ws & {"slutter", "hentes", "hente", "færdig", "finish", "finishes", "done", "out"}):
+        who = _name_in([w for w in WORD.findall(text or "")], names or []) or ("all" if ws & ALL_KIDS else None)  # a name wins over "de"
+        if who:
+            return "school", who
+    if ws & WASTE_WORDS:
+        return "waste", None
+    if ws & POWER_WORDS and ws & CHEAP_WORDS:
+        return "cheap", None
+    if ws & DINNER_WORDS:
+        return "dinner", None
+    if MINE_PHRASES.search(text or ""):
+        return "mine", None
     return None

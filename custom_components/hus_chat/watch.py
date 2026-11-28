@@ -30,7 +30,9 @@ from homeassistant.helpers import area_registry as ar, device_registry as dr, en
 from homeassistant.helpers.event import async_call_later, async_track_point_in_time, async_track_time_change
 from homeassistant.util import dt as dt_util
 
-from .const import HOUSE, TEXT
+from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+from .const import HOUSE, SIGNAL, TEXT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ DEFAULT_RULES = {
     "waste": {"on": True, "to": "home"},
 }
 WASTE_AT = 18  # the evening before the bins are emptied
+WEEK_AT = 18  # Sunday: the week ahead
 WASTE_UNTIL = 12  # the message goes at noon on the day
 ALWAYS = {"safety"}  # nobody can turn these off for themselves
 
@@ -106,6 +109,7 @@ class Watch:
         self._unsubs.append(async_track_time_change(self.hass, self._morning, hour=AT_HOUR, minute=0, second=0))
         self._unsubs.append(async_track_time_change(self.hass, self._dinner_poll, second=0))  # at the chosen minute
         self._unsubs.append(async_track_time_change(self.hass, self._waste, hour=WASTE_AT, minute=0, second=0))
+        self._unsubs.append(async_track_time_change(self.hass, self._week, hour=WEEK_AT, minute=0, second=0))
         self._unsubs.append(async_track_time_change(self.hass, self._waste_over, minute=5, second=0))
         for key in list(self.chat.cooks):  # after a restart
             self._plan_cook(key)
@@ -151,9 +155,36 @@ class Watch:
         except Exception:  # noqa: BLE001 - never in the way of the rest
             _LOGGER.warning("Good morning could not be put together", exc_info=True)
             return
-        for p, title, text in each:  # one each, with only what is theirs - nobody sees another's
+        for p, title, text, gifts in each:  # one each, with only what is theirs - nobody sees another's
             done.add(p["id"])  # once a day each, also over a restart in the middle
             self.chat.sent_days.update({"morning": today, "morning_to": sorted(done)})
+            m = await self.chat.post(HOUSE, text, kind="house", title=title, to=[p["id"]], topic="morning")
+            if gifts:
+                m["gifts"] = gifts  # "Køb gave" under it
+                self.chat._save()
+                async_dispatcher_send(self.hass, SIGNAL, "update", m)
+
+    # ---------- the week ahead: Sunday at 18 ----------
+    async def _week(self, now: Any = None) -> None:
+        r = self.rule("morning")  # goes with good morning: one switch for "the house tells me my day"
+        local = dt_util.as_local(now) if isinstance(now, datetime) else dt_util.now()
+        today = local.date().isoformat()
+        if not r["on"] or local.weekday() != 6:
+            return
+        done = set(self.chat.sent_days.get("week_to") or []) if self.chat.sent_days.get("week") == today else set()
+        from . import morning
+
+        people = [p for p in self.chat.people() if (p["user_id"] or p.get("web")) and p["id"] not in done]
+        if isinstance(r["to"], list):
+            people = [p for p in people if p["id"] in r["to"]]
+        try:
+            each = await morning.week_for_everyone(self.hass, self.chat, people, local)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("The week ahead could not be put together", exc_info=True)
+            return
+        for p, title, text, _g in each:
+            done.add(p["id"])
+            self.chat.sent_days.update({"week": today, "week_to": sorted(done)})
             await self.chat.post(HOUSE, text, kind="house", title=title, to=[p["id"]], topic="morning")
 
     # ---------- waste: the bins out the evening before ----------

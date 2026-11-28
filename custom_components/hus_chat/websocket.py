@@ -312,12 +312,15 @@ async def extra(chat: Chat, uid: str, me: str, msg: dict[str, Any]) -> Any:
     if what == "onway":
         m = await chat.on_my_way(me)
         return {"id": m["id"]}
+    if what == "gift" and isinstance(msg.get("message"), str) and isinstance(msg.get("name"), str):
+        return {"ok": await chat.gift(msg["message"], uid, msg["name"])}
     return {"error": "unsupported"}
 
 
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/extra", vol.Required("what"): vol.In(["shop", "poll", "vote", "pin", "onway"]),
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/extra", vol.Required("what"): vol.In(["shop", "poll", "vote", "pin", "onway", "gift"]),
                                   vol.Optional("add"): str, vol.Optional("done"): str, vol.Optional("question"): str,
-                                  vol.Optional("options"): [str], vol.Optional("message"): vol.Any(None, str), vol.Optional("option"): int})
+                                  vol.Optional("options"): [str], vol.Optional("message"): vol.Any(None, str), vol.Optional("option"): int,
+                                  vol.Optional("name"): str})
 @websocket_api.async_response
 async def ws_extra(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     chat = _chat(hass)

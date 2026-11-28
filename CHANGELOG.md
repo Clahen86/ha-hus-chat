@@ -2,6 +2,14 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.14.1 – 2026-11-28
+
+- Ask the house your own way: "when is Lilly out of school on Wednesday?", "Lilly off Wednesday?", "does Holly have school tomorrow?" or "when are the kids out of school?" – by the words in it, in any order, and a small slip in a name is fine. The day you ask about is the day you get (it said Monday before)
+- The week ahead on Sunday evening, one each: the week's dinners, the bins, schooldays without school and birthdays – only what is yours. Good morning then only says what is today
+- A present with one tap: "Melina's birthday in a week" in good morning has a "Buy a present" button – it goes on the shopping list
+- The car on "Lige nu" from Energy Pilot while it's plugged in: ready, charging now, or when it charges
+- "Who is home?" is no longer answered by the house – phones don't always say where they are
+
 ## 0.14.0 – 2026-11-28
 
 - "Lige nu" on top of the chat: what matters right now – a machine waiting to be emptied, who is on the way home and when, tonight's dinner and how many eat with, the bins out tonight. It changes by itself and goes when it's over; a tap finds the message
