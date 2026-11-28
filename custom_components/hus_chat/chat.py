@@ -679,13 +679,32 @@ class Chat:
             self._save()
             async_dispatcher_send(self.hass, SIGNAL, "update", msg)
 
+    def madplan_store(self) -> str | None:
+        """With several Madplan shops: the main sensor of the one whose meal plan reaches furthest from today on (the one
+        in use) - else the first. None with only one shop (Madplan then knows it itself)."""
+        reg = er.async_get(self.hass)
+        today = dt_util.now().date().isoformat()
+        mains: dict[str, str] = {}
+        days: dict[str, int] = {}
+        for e in reg.entities.values():
+            if e.platform != "madplan" or e.domain != "sensor" or not (s := self.hass.states.get(e.entity_id)):
+                continue
+            if s.attributes.get("varer_entitet"):
+                mains[e.config_entry_id] = e.entity_id
+            elif str(s.attributes.get("dato") or "") >= today and not s.attributes.get("fjernet") and s.state not in ("unknown", "unavailable", ""):
+                days[e.config_entry_id] = days.get(e.config_entry_id, 0) + 1
+        if len(mains) < 2:
+            return None
+        return mains[max(sorted(mains), key=lambda k: days.get(k, 0))]
+
     async def add_to_shopping(self, items: list[str]) -> bool:
         """Madplan's shopping list when Madplan is there (its own items: no AI, no price, no doubles) - otherwise Home
         Assistant's shopping list, without what's already on it."""
         try:
             if self.hass.services.has_service("madplan", "egen_vare"):
+                store = self.madplan_store()  # several shops: the one with the plan the family is using
                 for item in items:
-                    await self.hass.services.async_call("madplan", "egen_vare", {"tekst": item[:80]}, blocking=True)
+                    await self.hass.services.async_call("madplan", "egen_vare", {"tekst": item[:80], **({"entity_id": store} if store else {})}, blocking=True)
                 return True
             entity = self.shop_entity()
             if not entity:

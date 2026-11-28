@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.16.2 – 2026-11-28
+
+- With several Madplan shops, items now go to the shop whose meal plan you're using. Before, Madplan refused, and nothing was added
+
 ## 0.16.1 – 2026-11-28
 
 - Shopping by voice: "we need toilet paper", "buy milk and bread" or "put coffee on the shopping list" said to Assist goes onto the same list as in the chat – Madplan's when you have it – and Assist says what it put there. Before, the AI put it on Home Assistant's own list

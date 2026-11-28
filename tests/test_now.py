@@ -131,6 +131,30 @@ async def test_madplan_gets_it_when_it_is_there(hass: HomeAssistant, chat) -> No
     assert [x.data["tekst"] for x in mad] == ["Mælk"] and not added and m["shop"] == ["Mælk"]
 
 
+async def test_madplan_with_several_shops_uses_the_one_with_a_plan(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    from datetime import timedelta
+
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.util import dt as dt_util
+
+    c, _ = chat
+    reg = er.async_get(hass)
+    old = (dt_util.now().date() - timedelta(days=9)).isoformat()
+    soon = (dt_util.now().date() + timedelta(days=1)).isoformat()
+    for shop, dato in (("netto", old), ("rema", soon)):
+        main = reg.async_get_or_create("sensor", "madplan", f"{shop}_main")
+        day = reg.async_get_or_create("sensor", "madplan", f"{shop}_dag")
+        hass.states.async_set(main.entity_id, "1", {"varer_entitet": f"todo.{shop}"})
+        hass.states.async_set(day.entity_id, "Suppe", {"dato": dato})
+    with patch.object(er.RegistryEntry, "config_entry_id", property(lambda self: self.unique_id.split("_")[0])):
+        store = c.madplan_store()
+    assert store == reg.async_get_entity_id("sensor", "madplan", "rema_main")
+    mad = async_mock_service(hass, "madplan", "egen_vare")
+    with patch.object(type(c), "madplan_store", return_value="sensor.rema"):
+        assert await c.add_to_shopping(["Toiletpapir"])
+    assert mad[0].data == {"tekst": "Toiletpapir", "entity_id": "sensor.rema"}
+
+
 async def test_no_doubles_on_the_home_assistant_list(hass: HomeAssistant, chat) -> None:  # noqa: F811
     c, _ = chat
     hass.states.async_set("todo.shopping_list", "1", {"friendly_name": "Indkøbsliste"})
