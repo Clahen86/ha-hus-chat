@@ -39,6 +39,18 @@ GUARD_WORDS = re.compile(r"\b(lås|låse|låst|låsen|låsene|lock|locks|locked|
 MEDIA_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|webm|ogg|mp4|m4a|mp3|aac)$")
 
 
+ANSWERS = {
+    "da": {"dinner": "🍽️ I aften: {dish}", "no_dinner": "Der står ingen aftensmad i madplanen i dag.", "home": "🏠 Hjemme: {list}",
+           "nobody": "Der er ingen hjemme lige nu.", "unknown": "Det kan jeg ikke se lige nu.", "waste": "🗑️ {list} hentes {day}",
+           "school": "🎒 {name} har fri {day} kl. {t}", "not_yours": "Det kan kun en voksen se.", "free_day": "Ingenting – en fri dag 🙂",
+           "today": "i dag", "tomorrow": "i morgen", "days": ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"]},
+    "en": {"dinner": "🍽️ Tonight: {dish}", "no_dinner": "There's no dinner in the meal plan today.", "home": "🏠 Home: {list}",
+           "nobody": "Nobody is home right now.", "unknown": "I can't see that right now.", "waste": "🗑️ {list} is collected {day}",
+           "school": "🎒 {name} is out of school {day} at {t}", "not_yours": "Only a grown-up can see that.", "free_day": "Nothing – a free day 🙂",
+           "today": "today", "tomorrow": "tomorrow", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]},
+}
+
+
 def _t(hass: HomeAssistant) -> dict[str, str]:
     return TEXT.get((hass.config.language or "en").split("-")[0], TEXT["en"])
 
@@ -69,6 +81,8 @@ class Chat:
         self.vapid: Any = None  # the key web push is signed with (webpush.py)
         self.dinner: dict[str, Any] = {}  # today's dinner poll: {"date", "msg"} (watch.py)
         self.cooks: dict[str, dict[str, Any]] = {}  # "kid|date" -> who cooks what (Madplan), and whether it was said (watch.py)
+        self.now: list[dict[str, Any]] = []  # "Lige nu" on top of the chat (now.py)
+        self.sent_days: dict[str, str] = {}  # "morning"/"waste" -> the date it was last sent (once a day, also over a restart)
 
     # ---------- storage ----------
     async def async_load(self) -> None:
@@ -81,10 +95,11 @@ class Chat:
         self.agent = d.get("agent")
         self.links = d.get("links", {})
         self.pinned = d.get("pinned")
-        self.reminders = [r for r in d.get("reminders", []) if r.get("when", 0) > time.time() - 3600]
+        self.reminders = [r for r in d.get("reminders", []) if r.get("when") is None or r.get("every") or r.get("when", 0) > time.time() - 3600]
         self.speak = {"on": False, "player": None, **d.get("speak", {})}
         self.cooks = d.get("cooks", {})
         self.dinner = d.get("dinner", {})
+        self.sent_days = d.get("sent_days", {})
         from .webpush import Vapid
 
         self.vapid = Vapid(d.get("vapid"))
@@ -104,6 +119,22 @@ class Chat:
             EVENT_STATE_CHANGED, self._arrived, event_filter=callback(lambda d: str(d.get("entity_id", "")).startswith("person.")))
         await self._tidy_media()
         self._timers["_tidy"] = async_track_time_interval(self.hass, self._tidy_media, timedelta(hours=24))
+        self._timers["_now"] = async_track_time_interval(self.hass, callback(lambda _n: self.now_changed()), timedelta(minutes=1))
+        self.now_changed()
+
+    @callback
+    def now_changed(self) -> None:
+        """ "Lige nu" worked out again; the chats are told only when it changed (now.py)."""
+        from . import now
+
+        try:
+            cards = now.cards(self)
+        except Exception:  # noqa: BLE001 - a card that can't be made never stops the chat
+            _LOGGER.debug("Lige nu failed", exc_info=True)
+            return
+        if cards != self.now:
+            self.now = cards
+            async_dispatcher_send(self.hass, SIGNAL, "now", {})
 
     async def _tidy_media(self, _now: Any = None) -> None:
         used = {n for m in self.msgs for n in (m.get("image"), m.get("audio")) if n}
@@ -120,15 +151,15 @@ class Chat:
         """After a restart: house messages nobody took yet still go to everyone after 10 minutes."""
         now = time.time()
         for m in self.msgs:
-            if m["kind"] == "house" and m.get("take") and m.get("to") == "home" and not m.get("taken") \
-                    and not m.get("escalated") and now - m["t"] < 6 * ESCALATE_S:
+            if m["kind"] == "house" and m.get("take") and m.get("to") == "home" and not m.get("taken") and not m.get("done") \
+                    and m.get("sent") is not None and not m.get("escalated") and now - m["t"] < 6 * ESCALATE_S:
                 self._arm(m, set(m.get("sent") or []), max(5.0, ESCALATE_S - (now - m["t"])))
 
     def _save(self) -> None:
         self.store.async_delay_save(lambda: {"msgs": self.msgs, "read": self.read, "prefs": self.prefs, "seen": self.seen, "rules": self.rules, "agent": self.agent,
                                                   "links": self.links, "vapid": self.vapid.pem if self.vapid else None,
                                                   "pinned": self.pinned, "reminders": self.reminders, "speak": self.speak,
-                                                  "cooks": self.cooks, "dinner": self.dinner}, 2)
+                                                  "cooks": self.cooks, "dinner": self.dinner, "sent_days": self.sent_days}, 2)
 
     def stop(self) -> None:
         for cancel in self._timers.values():
@@ -213,6 +244,15 @@ class Chat:
         yes = list(m["poll"][0]["votes"]) if m and m.get("poll") else []
         return yes or None
 
+    async def is_adult(self, p: dict[str, Any]) -> bool:
+        """A grown-up: the person's own Home Assistant user is an administrator. Children's days (when school is out) go
+        to them - not to the other children. An app link counts as its person, or as a child on its own."""
+        uid = str(p.get("user_id") or "")
+        if not uid or uid.startswith("link:"):
+            return False
+        user = await self.hass.auth.async_get_user(uid)
+        return bool(user and user.is_admin)
+
     def person_of(self, user_id: str | None) -> dict[str, Any] | None:
         if user_id and user_id.startswith("link:"):  # the app from a link: whoever the link belongs to
             return next((p for p in self.people() if user_id[5:] in (p.get("web") or [])), None)
@@ -277,7 +317,7 @@ class Chat:
             msg["machine"] = machine  # kept with the message, so "emptied" finds it also after a restart
         if mtype:
             msg["mtype"] = mtype  # washer, dryer, dishwasher or other - to match the machine in other apps (Pligt-pilot)
-        if reply and (r := self.find(reply)):
+        if reply and (r := self.find(reply)) and (r["from"] == sender or not isinstance(r.get("to"), list) or sender in r["to"]):
             msg["reply"] = {"id": r["id"], "name": r.get("name") or "", "text": (r.get("text") or r.get("title") or
                             (_t(self.hass)["image"] if r.get("image") else _t(self.hass)["audio"] if r.get("audio") else ""))[:140]}
         self.msgs.append(msg)
@@ -288,10 +328,12 @@ class Chat:
         async_dispatcher_send(self.hass, SIGNAL, "message", msg)
         if push:
             await self._deliver(msg)
-        if kind == "house" and self.speak.get("on"):
+        if kind == "house" and self.speak.get("on") and not isinstance(to, list):  # a personal one stays personal
             self.hass.async_create_task(self._say(msg))
         if kind == "chat" and sender != HOUSE and msg["text"]:
             await self._understand(msg)
+        if kind == "house" or msg.get("eta"):
+            self.now_changed()
         return msg
 
     def _remove_media(self, gone: list[dict[str, Any]]) -> None:
@@ -317,7 +359,30 @@ class Chat:
         if tell and sender != HOUSE and (kind := self.machine_kind(m)):
             self.hass.bus.async_fire("hus_chat_machine", {"kind": "taken", "machine": kind, "name": m["taken"]["name"]})
         await self._clear_phones(msg_id)  # gone from everyone's phone
+        self.now_changed()
         return m
+
+    async def finish(self, msg_id: str, name: str | None = None) -> dict[str, Any] | None:
+        """A task is over (the machine emptied, the alert gone, the doorbell answered): shown small in the chat, gone from
+        every phone and from "Lige nu". Who took it is kept. Done once - a second "emptied" changes nothing."""
+        m = self.find(msg_id)
+        if not m or m.get("done"):
+            return m
+        m["done"] = {"name": name, "t": time.time()}
+        if not m.get("taken"):
+            m["taken"] = {"by": HOUSE, "name": name or self._name(HOUSE), "t": time.time()}
+        if cancel := self._timers.pop(msg_id, None):
+            cancel()  # no escalation for something already done
+        self._save()
+        async_dispatcher_send(self.hass, SIGNAL, "update", m)
+        await self._clear_phones(msg_id)
+        self.now_changed()
+        return m
+
+    def machine_open(self, key: str) -> dict[str, Any] | None:
+        """The newest message of this machine that isn't done yet - taken or not."""
+        m = next((m for m in reversed(self.msgs) if key and m.get("machine") == key), None)
+        return m if m and not m.get("done") else None
 
     async def pligt_link(self, m: dict[str, Any] | None, name: str) -> str | None:
         """A child's link to the machine chore in Pligt-pilot, so children take it there (and get paid) instead of in
@@ -370,7 +435,7 @@ class Chat:
         """An admin empties the chat: every message, picture and voice message."""
         gone, self.msgs = self.msgs, []
         await self.hass.async_add_executor_job(self._remove_media, gone)
-        for key in [k for k in self._timers if k != "_tidy"]:
+        for key in [k for k in self._timers if not k.startswith("_")]:  # the chat's own (_tidy, _home, _now) keep going
             self._timers.pop(key)()
         self._save()
         async_dispatcher_send(self.hass, SIGNAL, "clear", {})
@@ -380,6 +445,11 @@ class Chat:
         if not m or m["kind"] not in ("chat",) or not self.is_mine(m, user_id) or not text.strip():
             return False
         m["text"], m["edited"] = text.strip()[:4000], time.time()
+        if m.get("remind") or m.get("remind_home") or any(r.get("msg") == msg_id for r in self.reminders):
+            self.cancel_reminders(msg_id)  # the old time never rings: the new text decides
+            for k in ("remind", "remind_home", "remind_every"):
+                m.pop(k, None)
+            self._remind(m)
         self._save()
         async_dispatcher_send(self.hass, SIGNAL, "update", m)
         return True
@@ -493,20 +563,23 @@ class Chat:
         elif to == "home" and not everyone:
             home = [p for p in people if p["home"] or p.get("unsure")]  # in doubt: included
             people = home or people  # nobody home: everyone
+        return [p for p in people if (p["phones"] and self.wants(msg, p, p["user_id"]))
+                or any(self.wants(msg, p, f"link:{x}") for x in p.get("web") or [])]
+
+    def wants(self, msg: dict[str, Any], p: dict[str, Any], key: str | None) -> bool:
+        """Does this channel get a push - the phones under the person's own settings, an app link under the link's (a
+        child who turned push off in the app gets none there, also when the link belongs to a person with an account)."""
         from .watch import ALWAYS
 
-        def wants(p: dict[str, Any]) -> bool:
-            pr = self.prefs.get(p["user_id"] or "", {})
-            if msg.get("topic") in ALWAYS:
-                return True  # smoke, water, CO: always, also in quiet hours and with messages off
-            if msg.get("topic") and msg["topic"] in (pr.get("muted") or []):
-                return False
-            seen = max([self.active.get(p["user_id"] or "", 0)] + [self.active.get(f"link:{x}", 0) for x in p.get("web") or []])
-            if not msg.get("urgent") and time.time() - seen < 90:
-                return False  # has the chat open right now: sees it there
-            return (msg.get("urgent") or not self._quiet(p["user_id"])) and pr.get("push", True) is not False
-
-        return [p for p in people if wants(p)]
+        pr = self.prefs.get(key or "", {})
+        if msg.get("topic") in ALWAYS:
+            return True  # smoke, water, CO: always, also in quiet hours and with messages off
+        if msg.get("topic") and msg["topic"] in (pr.get("muted") or []):
+            return False
+        seen = max([self.active.get(p["user_id"] or "", 0)] + [self.active.get(f"link:{x}", 0) for x in p.get("web") or []])
+        if not msg.get("urgent") and time.time() - seen < 90:
+            return False  # has the chat open right now: sees it there
+        return (msg.get("urgent") or not self._quiet(key)) and pr.get("push", True) is not False
 
     def _name(self, sender: str) -> str:
         if sender == HOUSE:
@@ -551,11 +624,15 @@ class Chat:
     async def _deliver(self, msg: dict[str, Any]) -> None:
         sent = set()
         for p in self._recipients(msg):
-            kid_url = await self.pligt_link(msg, p["name"]) if p["phones"] and msg.get("take") else None
-            for svc in p["phones"]:
+            phones = p["phones"] if self.wants(msg, p, p["user_id"]) else []
+            kid_url = await self.pligt_link(msg, p["name"]) if phones and msg.get("take") else None
+            if msg.get("done") or (msg.get("take") and msg.get("taken")):
+                break  # taken or done while this was on its way (Pligt-pilot answers slowly): not sent after all
+            for svc in phones:
                 await self._notify(svc, self._push_data(msg, kid_url=kid_url))
             for lid in p.get("web") or []:
-                await self._webpush(lid, msg)
+                if self.wants(msg, p, f"link:{lid}"):
+                    await self._webpush(lid, msg)
             sent.add(p["id"])
         if msg["kind"] == "house" and msg.get("take") and msg.get("to") == "home":
             msg["sent"] = sorted(sent)  # kept, so a restart can still send it to the others (_rearm)
@@ -566,7 +643,7 @@ class Chat:
         @callback
         def _escalate(_now: Any) -> None:
             self._timers.pop(msg["id"], None)
-            if not msg.get("taken") and msg in self.msgs:
+            if not msg.get("taken") and not msg.get("done") and msg in self.msgs:
                 msg["escalated"] = True
                 self._save()
                 self.hass.async_create_task(self._escalate(msg, sent))
@@ -577,11 +654,15 @@ class Chat:
         for p in self._recipients(msg, everyone=True):
             if p["id"] in sent:
                 continue
-            kid_url = await self.pligt_link(msg, p["name"]) if p["phones"] else None
-            for svc in p["phones"]:
+            phones = p["phones"] if self.wants(msg, p, p["user_id"]) else []
+            kid_url = await self.pligt_link(msg, p["name"]) if phones else None
+            if msg.get("done") or msg.get("taken"):
+                break
+            for svc in phones:
                 await self._notify(svc, self._push_data(msg, _t(self.hass)["nobody"], kid_url))
             for lid in p.get("web") or []:
-                await self._webpush(lid, msg, _t(self.hass)["nobody"])
+                if self.wants(msg, p, f"link:{lid}"):
+                    await self._webpush(lid, msg, _t(self.hass)["nobody"])
 
     # ---------- what the chat understands, and the little extras ----------
     async def _understand(self, msg: dict[str, Any]) -> None:
@@ -589,39 +670,97 @@ class Chat:
         from . import smart
 
         if items := smart.shop_items(msg["text"]):
-            entity = self.shop_entity()
-            if entity:
-                for item in items:
-                    try:
-                        await self.hass.services.async_call("todo", "add_item", {"entity_id": entity, "item": item}, blocking=True)
-                    except Exception:  # noqa: BLE001 - a list that refuses: the message stays a message
-                        _LOGGER.debug("Could not add %s to %s", item, entity, exc_info=True)
-                        return
+            if await self.add_to_shopping(items):
                 msg["shop"] = items
                 self._save()
                 async_dispatcher_send(self.hass, SIGNAL, "update", msg)
             return
-        r = smart.reminder(msg["text"], dt_util.now().replace(tzinfo=None))
+        if self._remind(msg):
+            self._save()
+            async_dispatcher_send(self.hass, SIGNAL, "update", msg)
+
+    async def add_to_shopping(self, items: list[str]) -> bool:
+        """Madplan's shopping list when Madplan is there (its own items: no AI, no price, no doubles) - otherwise Home
+        Assistant's shopping list, without what's already on it."""
+        try:
+            if self.hass.services.has_service("madplan", "egen_vare"):
+                for item in items:
+                    await self.hass.services.async_call("madplan", "egen_vare", {"tekst": item[:80]}, blocking=True)
+                return True
+            entity = self.shop_entity()
+            if not entity:
+                return False
+            try:
+                have = {str(i.get("summary") or "").strip().lower() for i in (await self.shop_list()).get("items", [])}
+            except Exception:  # noqa: BLE001 - a list that can't be read: added without the check
+                have = set()
+            for item in items:
+                if item.lower() not in have:
+                    await self.hass.services.async_call("todo", "add_item", {"entity_id": entity, "item": item}, blocking=True)
+                    have.add(item.lower())
+            return True
+        except Exception:  # noqa: BLE001 - a list that refuses: the message stays a message
+            _LOGGER.debug("Could not add %s to the shopping list", items, exc_info=True)
+            return False
+
+    def _remind(self, msg: dict[str, Any]) -> bool:
+        """ "mind mig om ... i morgen kl. 8" becomes a reminder on this message. False: not a reminder."""
+        from . import smart
+
+        r = smart.reminder(msg.get("text") or "", dt_util.now().replace(tzinfo=None))
         if not r:
-            return
+            return False
+        if r.get("home"):  # when they come home (the person's own phone says so) - only for someone with a person
+            if not msg["from"].startswith("person."):
+                return False
+            rem = {"id": uuid.uuid4().hex[:10], "when": None, "home": True, "what": r["what"], "to": "all" if r["all"] else [msg["from"]],
+                   "by": msg["from"], "msg": msg["id"], "who": "any" if r["all"] else msg["from"]}
+            self.reminders.append(rem)
+            msg["remind_home"] = True
+            return True
         when = dt_util.as_utc(r["when"].replace(tzinfo=dt_util.get_default_time_zone())).timestamp()
         rem = {"id": uuid.uuid4().hex[:10], "when": when, "what": r["what"], "to": "all" if r["all"] else [msg["from"]], "by": msg["from"], "msg": msg["id"]}
+        if r.get("every"):
+            rem["every"] = r["every"]  # days: 1 or 7 - again and again until the message is deleted
+            rem["at"] = r["when"].strftime("%H:%M")  # the clock time it keeps, also when the clocks change
+            msg["remind_every"] = r["every"]
         self.reminders.append(rem)
         self._arm_reminder(rem)
         msg["remind"] = when
-        self._save()
-        async_dispatcher_send(self.hass, SIGNAL, "update", msg)
+        return True
 
     def _arm_reminder(self, rem: dict[str, Any]) -> None:
+        if rem.get("when") is None:
+            return  # "when I come home": no clock (_arrived)
+        if rem.get("every"):  # missed while Home Assistant was down: the next one, not a pile of old ones
+            while rem["when"] < time.time():
+                rem["when"] = self._next(rem)
+
         @callback
         def _due(_now: Any) -> None:
             self._timers.pop(f"rem-{rem['id']}", None)
-            if rem in self.reminders:
+            if rem not in self.reminders:
+                return
+            if rem.get("every"):
+                rem["when"] = self._next(rem)
+                self._arm_reminder(rem)
+                if (m := self.find(rem.get("msg") or "")) is not None:
+                    m["remind"] = rem["when"]
+                    async_dispatcher_send(self.hass, SIGNAL, "update", m)
+            else:
                 self.reminders.remove(rem)
-                self._save()
-                self.hass.async_create_task(self.post(HOUSE, f"⏰ {rem['what']}", kind="house", to=rem["to"]))
+            self._save()
+            self.hass.async_create_task(self.post(HOUSE, f"⏰ {rem['what']}", kind="house", to=rem["to"]))
 
         self._timers[f"rem-{rem['id']}"] = async_call_later(self.hass, max(1.0, rem["when"] - time.time()), _due)
+
+    @staticmethod
+    def _next(rem: dict[str, Any]) -> float:
+        """The same local time a day or a week later (also over the clocks changing)."""
+        local = dt_util.as_local(dt_util.utc_from_timestamp(rem["when"]))
+        h, m = (int(x) for x in (rem.get("at") or local.strftime("%H:%M")).split(":"))
+        nxt = (local.replace(tzinfo=None) + timedelta(days=int(rem["every"]))).replace(hour=h, minute=m, second=0, microsecond=0)
+        return dt_util.as_utc(nxt.replace(tzinfo=dt_util.get_default_time_zone())).timestamp()
 
     def cancel_reminders(self, msg_id: str) -> None:
         for rem in [r for r in self.reminders if r.get("msg") == msg_id]:
@@ -696,18 +835,29 @@ class Chat:
         lat, lon = (st.attributes.get("latitude"), st.attributes.get("longitude")) if st else (None, None)
         mins = smart.eta_minutes(lat, lon, self.hass.config.latitude, self.hass.config.longitude) if not (p and p["home"]) else None
         t = TEXT.get((self.hass.config.language or "en").split("-")[0], TEXT["en"])
-        text = t["onway"] + (f" – {t['eta'].format(t=(dt_util.now() + timedelta(minutes=mins)).strftime('%H:%M'))}" if mins else "")
+        eta = (dt_util.now() + timedelta(minutes=mins)).strftime("%H:%M") if mins else None
+        text = t["onway"] + (f" – {t['eta'].format(t=eta)}" if eta else "")
         self.onway[sender] = time.time()
-        return await self.post(sender, f"🚗 {text}")
+        m = await self.post(sender, f"🚗 {text}")
+        if eta:
+            m["eta"] = eta  # for "Lige nu"
+            self._save()
+        self.now_changed()
+        return m
 
     @callback
     def _arrived(self, event: Event) -> None:
         new, old = event.data.get("new_state"), event.data.get("old_state")
         who = event.data.get("entity_id")
-        if not new or new.state != "home" or (old and old.state == "home") or who not in self.onway:
+        if not new or new.state != "home" or (old and old.state == "home") or (old and old.state in ("unknown", "unavailable")):
             return
-        if time.time() - self.onway.pop(who) > 4 * 3600:
+        for rem in [r for r in self.reminders if r.get("home") and r.get("who") in (who, "any")]:
+            self.reminders.remove(rem)  # "remind me when I come home": now
+            self._save()
+            self.hass.async_create_task(self.post(HOUSE, f"⏰ {rem['what']}", kind="house", to=rem["to"] if rem["who"] == "any" else [who]))
+        if who not in self.onway or time.time() - self.onway.pop(who) > 4 * 3600:
             return
+        self.now_changed()
         t = TEXT.get((self.hass.config.language or "en").split("-")[0], TEXT["en"])
         self.hass.async_create_task(self.post(HOUSE, f"🏠 {t['arrived'].format(name=self._name(who))}", kind="house", to="all"))
 
@@ -727,6 +877,7 @@ class Chat:
             m["poll"][option]["votes"].append(me)
         self._save()
         async_dispatcher_send(self.hass, SIGNAL, "update", m)
+        self.now_changed()
         return True
 
     def pin(self, msg_id: str | None) -> bool:
@@ -820,6 +971,8 @@ class Chat:
             return await self.post(HOUSE, _t(self.hass)["house_off"], kind="assist", push=False, to=[self.sender_of(uid)])
         if await self._guarded(text):
             return await self.post(HOUSE, _t(self.hass)["house_guarded"], kind="assist", push=False, to=[self.sender_of(uid)])
+        if (own := await self.local_answer(uid, text)) is not None:
+            return await self.post(HOUSE, own, kind="assist", push=False, to=[self.sender_of(uid)])
         answer = await self._converse(None, text, uid, builtin=True)
         return await self.post(HOUSE, answer or "🤷", kind="assist", push=False, to=[self.sender_of(uid)])
 
@@ -859,10 +1012,77 @@ class Chat:
                 return True
         return False
 
+    async def local_answer(self, user_id: str | None, text: str) -> str | None:
+        """The house's own questions, answered from what it already knows - before Assist or an AI (smart.question).
+        A child's school day only to that child and the grown-ups. None: not one of them, or nothing to say."""
+        from . import calendars, morning, smart
+
+        q = smart.question(text)
+        if not q:
+            return None
+        kind, arg = q
+        w, a, now = morning.words(self.hass), ANSWERS.get((self.hass.config.language or "en").split("-")[0], ANSWERS["en"]), dt_util.now()
+        people = self.people()
+        me = next((p for p in people if p["id"] == self.sender_of(user_id)), None)
+        if kind == "dinner":
+            line = morning.dinner_line(self.hass, {**w, "dinner": "{dish}"}, now.date().isoformat())
+            return a["dinner"].format(dish=line) if line else a["no_dinner"]
+        if kind == "home":
+            home = [p["name"].split(" ")[0] for p in people if p["home"]]
+            return a["home"].format(list=", ".join(home)) if home else a["nobody"]
+        if kind == "cheap":
+            return morning.cheap_line(self.hass, w, now) or a["unknown"]
+        cals = calendars.find(self.hass, people)
+        day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if kind == "waste":
+            nxt = []
+            for c in (c for c in cals if c["kind"] == "waste"):
+                nxt += await calendars.events(self.hass, c["entity_id"], now, now + timedelta(days=21))
+            if not nxt:
+                return a["unknown"]
+            first = min(nxt, key=lambda e: e["start"])
+            same = [e["summary"] for e in nxt if e["start"].date() == first["start"].date() and e["summary"]]
+            return a["waste"].format(list=", ".join(dict.fromkeys(same)), day=self._day_word(first["start"], a))
+        if kind == "school":
+            who = next((p for p in people if p["name"].split(" ")[0].lower() == str(arg or "").lower()), None)
+            if not who:
+                return None  # not a name in the family: Assist may know
+            adult = bool(me) and not str(user_id or "").startswith("link:") and await self.is_adult(me)
+            if not (me and (me["id"] == who["id"] or adult)):
+                return a["not_yours"]
+            for c in (c for c in cals if c["kind"] == "school" and c["person"] == who["id"]):
+                for d in range(0, 7):
+                    if span := calendars.day_span(await calendars.events(self.hass, c["entity_id"], day0 + timedelta(days=d), day0 + timedelta(days=d + 1))):
+                        if d == 0 and span[1] < now:
+                            continue
+                        return a["school"].format(name=who["name"].split(" ")[0], day=self._day_word(span[1], a), t=f"{span[1].hour}:{span[1].minute:02d}")
+            return a["unknown"]
+        if kind == "mine" and me:
+            get = getattr(self.hass.data.get("pligt_pilot"), "today", None)
+            try:
+                chores = await get() if callable(get) else None
+            except Exception:  # noqa: BLE001 - Pligt-pilot is a guest here
+                chores = None
+            adult = not str(user_id or "").startswith("link:") and await self.is_adult(me)
+            lines = await morning.own_lines(self.hass, self, me, adult, cals, now, w, chores)
+            return "\n".join(lines) or a["free_day"]
+        return None
+
+    @staticmethod
+    def _day_word(d: datetime, a: dict[str, str]) -> str:
+        today = dt_util.now().date()
+        if d.date() == today:
+            return a["today"]
+        if d.date() == today + timedelta(days=1):
+            return a["tomorrow"]
+        return a["days"][d.weekday()] + f" {d.day}/{d.month}"
+
     async def _ask_house(self, user_id: str | None, text: str) -> dict[str, Any]:
         """Like Assist with "prefer local commands": Home Assistant's own Assist first - "turn off the lights" is done at
         once - and only what it doesn't understand goes to the chosen AI. If the AI can't answer (quota used up, offline,
         no answer in 45 s), Home Assistant's answer is used with a small note, and the AI rests for 30 minutes."""
+        if (own := await self.local_answer(user_id, text)) is not None:
+            return await self.post(HOUSE, own, kind="assist", push=False, to=[self.sender_of(user_id)])
         agent = self.agent or self.assist_agent()  # the chosen AI, or the one Assist uses
         if agent and not self.hass.states.get(agent) and agent != BUILTIN_AGENT:
             agent = None  # removed since: Home Assistant's own

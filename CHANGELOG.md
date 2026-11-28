@@ -2,6 +2,18 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.14.0 – 2026-11-28
+
+- "Lige nu" on top of the chat: what matters right now – a machine waiting to be emptied, who is on the way home and when, tonight's dinner and how many eat with, the bins out tonight. It changes by itself and goes when it's over; a tap finds the message
+- Tasks go when they're done: an emptied machine, an answered doorbell or a bin taken out shows small in the chat and is gone from every phone – also when someone had pressed "I'll take it" first
+- Good morning is personal: each one gets their own – a child their school day, their friends' birthdays (a week ahead too) and their chores; the grown-ups when each child is out of school, the family calendar today and the cheapest power. Found in your calendars, nobody sees another child's day
+- The bins: the evening before, which bin is collected tomorrow (from your waste calendar, e.g. Affaldshåndtering DK) with "I'll take it"
+- A machine done at night rings no phone – it waits in the chat and in good morning
+- Ask the house: "what's for dinner?", "who's home?", "when are the bins collected?", "when is Holly out of school?", "when is power cheapest?", "what do I have today?" – answered at once, without an AI
+- Shopping understands more: "we need milk", "out of coffee" – onto Madplan's shopping list when you have Madplan, otherwise Home Assistant's, never twice
+- Reminders: "remind me to take the parcel in when I get home", and "remind us about the bins every Tuesday at 18"
+- An app link keeps its own quiet hours and push setting; an edited reminder rings at the new time; a personal message is never read aloud on the speaker
+
 ## 0.13.1 – 2026-11-22
 
 - The dinner poll came as a plain message: the Yes/No buttons now show in the chat, and in the notification on the phone - a tap there counts as your answer

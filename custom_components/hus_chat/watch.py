@@ -19,7 +19,7 @@ Who gets each kind is chosen under Settings (admins), and each person can turn a
 
 from __future__ import annotations
 
-from datetime import date, datetime, time as dtime
+from datetime import date, datetime, time as dtime, timedelta
 import logging
 import time
 from typing import Any
@@ -27,7 +27,7 @@ from typing import Any
 from homeassistant.const import STATE_ON
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
-from homeassistant.helpers.event import async_track_point_in_time, async_track_time_change
+from homeassistant.helpers.event import async_call_later, async_track_point_in_time, async_track_time_change
 from homeassistant.util import dt as dt_util
 
 from .const import HOUSE, TEXT
@@ -42,7 +42,10 @@ DEFAULT_RULES = {
     "alarm": {"on": False, "to": "all"},
     "morning": {"on": False, "to": "all"},
     "dinner": {"on": False, "to": "all", "at": "15:00"},
+    "waste": {"on": True, "to": "home"},
 }
+WASTE_AT = 18  # the evening before the bins are emptied
+WASTE_UNTIL = 12  # the message goes at noon on the day
 ALWAYS = {"safety"}  # nobody can turn these off for themselves
 
 WORDS = {
@@ -50,17 +53,21 @@ WORDS = {
            "moisture": "Vand", "in": "i {area}", "door": "🔔 Det ringer på døren", "alarm_triggered": "🚨 Alarmen går!",
            "armed": "🔒 Alarmen er slået til", "disarmed": "🔓 Alarmen er slået fra", "stopped": "✓ {name} er stoppet",
            "aw_stopped": "Har ikke kørt i timevis – tjek den, før maden tør op.", "aw_nonstop": "Kører uden pause – står døren åben?",
-           "aw_lost": "Ingen måling – har den mistet strømmen?", "aw_tank": "Stoppet – tanken er nok fuld.", "aw_ok": "Virker igen"},
+           "aw_lost": "Ingen måling – har den mistet strømmen?", "aw_tank": "Stoppet – tanken er nok fuld.", "aw_ok": "Virker igen",
+           "waste": "🗑️ {list} hentes i morgen", "waste_s": "Stil spanden ud i aften"},
     "en": {"dinner_q": "🍽️ Home for dinner today?", "dinner_yes": "🙋 Yes", "dinner_no": "No", "dinner_dish": "It's {dish}", "done": "{icon} {name} is done", "emptied": "Emptied", "smoke": "Smoke alarm", "gas": "Gas alarm", "carbon_monoxide": "CO alarm",
            "moisture": "Water", "in": "in {area}", "door": "🔔 Someone is at the door", "alarm_triggered": "🚨 The alarm is going off!",
            "armed": "🔒 The alarm is armed", "disarmed": "🔓 The alarm is disarmed", "stopped": "✓ {name} has stopped",
            "aw_stopped": "Hasn't run for hours – check it before the food thaws.", "aw_nonstop": "Runs without a break – is the door open?",
-           "aw_lost": "No reading – has it lost power?", "aw_tank": "Stopped – the tank is probably full.", "aw_ok": "Works again"},
+           "aw_lost": "No reading – has it lost power?", "aw_tank": "Stopped – the tank is probably full.", "aw_ok": "Works again",
+           "waste": "🗑️ {list} collected tomorrow", "waste_s": "Put the bin out tonight"},
 }
 MACHINE_ICON = {"dishwasher": "🍽️", "washing_machine": "🧺", "washer": "🧺", "dryer": "🌀"}
 MACHINE_WORDS = (("dishwasher", ("opvask", "dish")), ("dryer", ("tørre", "tumbl", "dryer", "trockner", "tork")),
                  ("washer", ("vask", "wash", "wasch", "tvätt")))
 COOK_AT = dtime(7)  # "<kid> is cooking today" is said at 7 in the morning
+NIGHT_FROM, NIGHT_TO = 22, 7  # a machine done at night rings no phone - it's in the chat and in good morning
+DOOR_CLEAR_S = 5 * 60
 
 
 def machine_type(name: str | None) -> str:
@@ -98,8 +105,14 @@ class Watch:
 
         self._unsubs.append(async_track_time_change(self.hass, self._morning, hour=AT_HOUR, minute=0, second=0))
         self._unsubs.append(async_track_time_change(self.hass, self._dinner_poll, second=0))  # at the chosen minute
+        self._unsubs.append(async_track_time_change(self.hass, self._waste, hour=WASTE_AT, minute=0, second=0))
+        self._unsubs.append(async_track_time_change(self.hass, self._waste_over, minute=5, second=0))
         for key in list(self.chat.cooks):  # after a restart
             self._plan_cook(key)
+        for m in self.chat.msgs[-100:]:  # a doorbell rung just before a restart still goes from the phones
+            if m.get("topic") == "doorbell" and not m.get("done"):
+                left = DOOR_CLEAR_S - (time.time() - m["t"])
+                self._cook_timers[f"door:{m['id']}"] = async_call_later(self.hass, max(1.0, left), callback(lambda _n, i=m["id"]: self._door_done(i)))
 
     def stop(self) -> None:
         for u in [*self._unsubs, *self._cook_timers.values()]:
@@ -123,17 +136,51 @@ class Watch:
     # ---------- good morning ----------
     async def _morning(self, _now: Any = None) -> None:
         """The day ahead at 7 (morning.py) - only when switched on, and only when there's something to say."""
-        if not self.rule("morning")["on"]:
+        r = self.rule("morning")
+        today = dt_util.now().date().isoformat()
+        if not r["on"]:
             return
+        done = set(self.chat.sent_days.get("morning_to") or []) if self.chat.sent_days.get("morning") == today else set()
         from . import morning
 
+        people = [p for p in self.chat.people() if (p["user_id"] or p.get("web")) and p["id"] not in done]  # also read in the panel
+        if isinstance(r["to"], list):
+            people = [p for p in people if p["id"] in r["to"]]
         try:
-            got = await morning.build(self.hass)
+            each = await morning.for_everyone(self.hass, self.chat, people)
         except Exception:  # noqa: BLE001 - never in the way of the rest
             _LOGGER.warning("Good morning could not be put together", exc_info=True)
             return
-        if got:
-            await self._post("morning", got[0], got[1])
+        for p, title, text in each:  # one each, with only what is theirs - nobody sees another's
+            done.add(p["id"])  # once a day each, also over a restart in the middle
+            self.chat.sent_days.update({"morning": today, "morning_to": sorted(done)})
+            await self.chat.post(HOUSE, text, kind="house", title=title, to=[p["id"]], topic="morning")
+
+    # ---------- waste: the bins out the evening before ----------
+    async def _waste(self, _now: Any = None) -> None:
+        """At 18: what is emptied tomorrow (the waste calendar) - one "I'll take it" to those at home, gone when it's
+        taken or at noon the day after."""
+        from . import calendars
+
+        r = self.rule("waste")
+        tomorrow = (dt_util.now() + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        if not r["on"] or self.chat.sent_days.get("waste") == tomorrow.date().isoformat():
+            return
+        kinds: list[str] = []
+        for c in (c for c in calendars.find(self.hass, self.chat.people()) if c["kind"] == "waste"):
+            kinds += [e["summary"] for e in await calendars.events(self.hass, c["entity_id"], tomorrow, tomorrow + timedelta(days=1)) if e["summary"]]
+        if not kinds:
+            return
+        self.chat.sent_days["waste"] = tomorrow.date().isoformat()
+        m = await self._post("waste", self.w["waste"].format(list=", ".join(dict.fromkeys(kinds))), self.w["waste_s"], take=True)
+        if m:
+            m["until"] = tomorrow.replace(hour=WASTE_UNTIL).timestamp()
+        self.chat._save()
+
+    async def _waste_over(self, _now: Any = None) -> None:
+        for m in self.chat.msgs[-200:]:
+            if m.get("topic") == "waste" and not m.get("done") and time.time() >= m.get("until", m["t"] + 30 * 3600):
+                await self.chat.finish(m["id"])
 
     # ---------- dinner: who is home to eat ----------
     async def _dinner_poll(self, now: Any = None) -> None:
@@ -149,20 +196,27 @@ class Watch:
         self.chat.dinner = {"date": today, "msg": None}  # once a day, also when posting fails
         m = await self._post("dinner", self.w["dinner_q"], self.w["dinner_dish"].format(dish=dish) if dish else "",
                              poll=[self.w["dinner_yes"], self.w["dinner_no"]])
-        self.chat.dinner = {"date": today, "msg": m["id"] if m else None}
+        self.chat.dinner = {"date": today, "msg": m["id"] if m else None, "dish": dish or ""}
         self.chat._save()
 
     # ---------- machines ----------
     async def _machine_done(self, event: Event) -> None:
+        """Done: "I'll take it" to those at home. At night (22-7) no phone rings - it waits in the chat and in good
+        morning."""
         d = event.data
         icon = MACHINE_ICON.get(str(d.get("kind") or ""), "✅")
-        await self._post("machines", self.w["done"].format(icon=icon, name=d.get("name") or "?"), "", take=True,
-                         machine=str(d.get("entry_id") or "") or None, mtype=machine_type(d.get("name")))
+        hour = dt_util.now().hour
+        night = hour >= NIGHT_FROM or hour < NIGHT_TO
+        m = await self._post("machines", self.w["done"].format(icon=icon, name=d.get("name") or "?"), "", take=True,
+                             machine=str(d.get("entry_id") or "") or None, mtype=machine_type(d.get("name")), push=not night)
+        if m and night:
+            m["night"] = True  # for good morning (morning.night_line)
+            self.chat._save()
 
     async def _machine_emptied(self, event: Event) -> None:
         # The machine is kept on its message, so this works after a restart too.
-        if m := self.chat.machine_message(str(event.data.get("entry_id") or "")):
-            await self.chat.take(m["id"], HOUSE, name=self.w["emptied"])
+        if m := self.chat.machine_open(str(event.data.get("entry_id") or "")):
+            await self.chat.finish(m["id"], self.w["emptied"])  # also when somebody had taken it
         self.hass.bus.async_fire("hus_chat_machine", {"kind": "emptied", "machine": machine_type(event.data.get("name")), "name": ""})
 
     async def _machine_alert(self, event: Event) -> None:
@@ -170,8 +224,8 @@ class Watch:
         d, w = event.data, self.w
         key = f"aw:{d.get('entry_id')}"
         if d.get("ok"):
-            if m := self.chat.machine_message(key):
-                await self.chat.take(m["id"], HOUSE, name=w["aw_ok"])
+            if m := self.chat.machine_open(key):
+                await self.chat.finish(m["id"], w["aw_ok"])
             return
         reason = str(d.get("reason") or "")
         urgent = d.get("kind") == "freezer" and reason in ("stopped", "nonstop", "lost")
@@ -238,7 +292,14 @@ class Watch:
                 image = await self.hass.async_add_executor_job(self.chat.save_media, img.content, "jpg")
             except Exception:  # noqa: BLE001 - the message goes without the picture
                 image = None
-        await self._post("doorbell", self.w["door"], "", image=image)
+        m = await self._post("doorbell", self.w["door"], "", image=image)
+        if m:  # answered or not: gone from the phones after a few minutes (the message stays in the chat)
+            self._cook_timers[f"door:{m['id']}"] = async_call_later(self.hass, DOOR_CLEAR_S, callback(lambda _n, i=m["id"]: self._door_done(i)))
+
+    @callback
+    def _door_done(self, msg_id: str) -> None:
+        self._cook_timers.pop(f"door:{msg_id}", None)
+        self.hass.async_create_task(self.chat.finish(msg_id))
 
     async def _alarm(self, state: str) -> None:
         if state == "triggered":

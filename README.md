@@ -42,7 +42,13 @@ Found in your Home Assistant – nothing to set up:
 | 🔥 **Smoke, water, gas, CO** | Rings like an alarm on the phones – also on silent and in quiet hours. Says the room. |
 | 🔔 **Doorbell** | With a picture from the camera at the door. |
 | 🚨 **Alarm** | When it goes off (urgent), or is armed and disarmed. Off from the start. |
+| 🗑️ **Bins** | The evening before: which bin is collected tomorrow, from your waste calendar (e.g. Affaldshåndtering DK). |
+| ☀️ **Good morning** | One each at 7 with only what is theirs: a child's school day and friends' birthdays, the grown-ups when each child is out of school and the family calendar – plus weather and dinner. |
 | 🍳 **Pligt-pilot and Madplan** | If they are installed, nothing to set up: a machine taken in one is taken in the other, "Dinner is ready" when a child is done cooking, "Silas is cooking today" at 7 in the morning, and a child gets "Take it in Pligter" instead of "I'll take it", so they get paid for it. |
+
+**Lige nu** on top of the chat shows what matters right now – a machine waiting, who is on the way home, tonight's dinner – and goes by itself when it's over. Done tasks are gone from every phone.
+
+**Ask the house**: "what's for dinner?", "who's home?", "when are the bins collected?", "when is Holly out of school?" – answered at once.
 
 Under ⚙️ → **Messages from the house** an admin picks who gets each kind: *at home*, *everyone* or chosen persons. Each person can turn a kind off for themselves – except smoke and water. If nobody takes a message within 10 minutes, it goes to everyone.
 
@@ -115,7 +121,13 @@ Til børn og andre uden en Home Assistant-konto: under ⚙️ → **Chatten som 
 - 🔥 **Røg, vand, gas og CO**: ringer som en alarm på telefonen – også på lydløs og i stille timer. Siger hvilket rum.
 - 🔔 **Det ringer på døren**: med et billede fra kameraet ved døren.
 - 🚨 **Alarm**: når den går (haster), eller slås til og fra. Slået fra fra start.
+- 🗑️ **Skrald**: aftenen før, hvilken spand der hentes i morgen – fra din affaldskalender (fx Affaldshåndtering DK).
+- ☀️ **Godmorgen**: én til hver kl. 7 med kun det, der er ens eget: barnets skoledag og venners fødselsdage, de voksne hvornår hvert barn har fri og familiens kalender – plus vejr og aftensmad.
 - 🍳 **Pligt-pilot og Madplan**: hvis de er installeret, uden opsætning: en maskine taget i den ene er taget i den anden, "Maden er klar", når et barn har lavet mad, "Silas laver mad i dag" kl. 7 om morgenen, og et barn får "Tag den i Pligter" i stedet for "Jeg tager den", så det får penge for den.
+
+**Lige nu** øverst i chatten viser det, der er vigtigt lige nu – en maskine der venter, hvem der er på vej hjem, aftensmaden – og forsvinder af sig selv, når det er overstået. Klarede opgaver forsvinder fra alle telefoner.
+
+**Spørg huset**: "hvad skal vi spise?", "hvem er hjemme?", "hvornår er der skrald?", "hvornår har Holly fri?" – svar med det samme.
 
 Under ⚙️ → **Beskeder fra huset** vælger en admin, hvem der får hvad: *hjemme*, *alle* eller bestemte personer. Hver person kan slå en slags fra for sig selv – undtagen røg og vand. Tager ingen en besked inden 10 minutter, går den til alle.
 

@@ -57,7 +57,14 @@ def init_payload(chat: Chat, uid: str) -> dict[str, Any]:
                    "house": bool(chat.links.get(lid, {}).get("house"))},
             "member": True, "reads": chat.reads(), "unread": chat.unread(uid), "read": chat.read.get(uid, 0),
             "prefs": chat.get_prefs(uid), "phones": [], "rules": chat.get_rules(), "agents": None,
-            "push_key": chat.vapid.public if chat.vapid else None, "pinned": chat.pinned, "subs": len(chat.links.get(lid, {}).get("subs") or [])}
+            "push_key": chat.vapid.public if chat.vapid else None, "pinned": chat.pinned, "subs": len(chat.links.get(lid, {}).get("subs") or []),
+            "now": now_for(chat, uid)}
+
+
+def now_for(chat: Chat, uid: str) -> list[dict[str, Any]]:
+    from .now import cards_for
+
+    return cards_for(chat, chat.now, uid)
 
 
 class AppPageView(HomeAssistantView):
@@ -134,6 +141,9 @@ class AppApiView(HomeAssistantView):
                 queue.put_nowait({"type": "gone"})
                 return
             try:
+                if kind == "now":
+                    queue.put_nowait({"type": "now", "now": now_for(chat, uid)})
+                    return
                 queue.put_nowait({"type": kind, "message": m, "unread": chat.unread(uid)})
             except asyncio.QueueFull:
                 pass

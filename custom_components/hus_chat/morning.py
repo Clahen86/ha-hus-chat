@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+import re
+import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -27,9 +29,13 @@ SKIP_DISHES = {"", "–", "-", "Før planen", "unknown", "unavailable"}
 
 WORDS = {
     "da": {"title": "☀️ Godmorgen", "weather": "{icon} {hi}° / {lo}°", "rain": "regn {mm} mm", "dinner": "🍽️ Aftensmad: {dish}",
-           "cook": "{name} laver den", "chores": "🧹 Pligter i dag: {list}", "cheap": "⚡ Billigst strøm kl. {a}–{b}"},
+           "cook": "{name} laver den", "chores": "🧹 Pligter i dag: {list}", "cheap": "⚡ Billigst strøm kl. {a}–{b}", "night": "🌙 Færdig i nat og venter: {list}",
+           "title_p": "☀️ Godmorgen {name}", "school": "🎒 Skole {a}–{b}", "free": "🎒 Fri i dag: {list}", "bday": "🎂 I dag: {list}",
+           "bday_soon": "🎁 Om en uge: {list}", "cal": "📅 {list}", "holiday": "🎉 {list}", "mine": "🧹 Dine pligter i dag: {n}"},
     "en": {"title": "☀️ Good morning", "weather": "{icon} {hi}° / {lo}°", "rain": "rain {mm} mm", "dinner": "🍽️ Dinner: {dish}",
-           "cook": "{name} cooks", "chores": "🧹 Chores today: {list}", "cheap": "⚡ Cheapest power {a}–{b}"},
+           "cook": "{name} cooks", "chores": "🧹 Chores today: {list}", "cheap": "⚡ Cheapest power {a}–{b}", "night": "🌙 Done in the night and waiting: {list}",
+           "title_p": "☀️ Good morning {name}", "school": "🎒 School {a}–{b}", "free": "🎒 Out of school today: {list}", "bday": "🎂 Today: {list}",
+           "bday_soon": "🎁 In a week: {list}", "cal": "📅 {list}", "holiday": "🎉 {list}", "mine": "🧹 Your chores today: {n}"},
 }
 SKY = {"sunny": "☀️", "clear-night": "🌙", "partlycloudy": "⛅", "cloudy": "☁️", "fog": "🌫️", "rainy": "🌧️", "pouring": "🌧️",
        "snowy": "🌨️", "snowy-rainy": "🌨️", "hail": "🌨️", "lightning": "🌩️", "lightning-rainy": "⛈️", "windy": "💨",
@@ -111,10 +117,110 @@ def cheap_line(hass: HomeAssistant, w: dict[str, str], now: datetime) -> str | N
     return None
 
 
-async def build(hass: HomeAssistant, now: datetime | None = None) -> tuple[str, str] | None:
+def night_line(chat: Any, w: dict[str, str]) -> str | None:
+    """Machines that finished in the night and still wait - no phone rang for them (watch.py)."""
+    if chat is None:
+        return None
+    since = time.time() - 12 * 3600
+    names = [m.get("title") or "" for m in chat.msgs[-200:]
+             if m.get("night") and not m.get("done") and not m.get("taken") and m["t"] >= since]
+    return w["night"].format(list=", ".join(n for n in names if n)) if names else None
+
+
+async def build(hass: HomeAssistant, now: datetime | None = None, chat: Any = None) -> tuple[str, str] | None:
     """(title, text), or None when there's nothing to say."""
     now, w = now or dt_util.now(), words(hass)
     lines = [await weather_line(hass, w), dinner_line(hass, w, now.date().isoformat()), await chores_line(hass, w),
-             cheap_line(hass, w, now)]
+             night_line(chat, w), cheap_line(hass, w, now)]
     lines = [x for x in lines if x]
     return (w["title"], "\n".join(lines)) if lines else None
+
+
+# ---------- one good morning per person (0.15) ----------
+def _hm(d: datetime) -> str:
+    return f"{d.hour}:{d.minute:02d}"
+
+
+def _who(summary: str, first: str) -> str:
+    """ "Lilly: 🎂 Melina Mosskov P" -> "Melina Mosskov P" (a birthday calendar names the child first)."""
+    s = re.sub(rf"^\s*{re.escape(first)}\s*:\s*", "", summary, flags=re.I) if first else summary
+    return re.sub(r"^[\s🎂🎁🎉]+", "", s).strip()
+
+
+async def common_lines(hass: HomeAssistant, now: datetime, chat: Any, cals: list[dict[str, Any]], w: dict[str, str]) -> list[str]:
+    """For everyone: the weather, dinner, a holiday today, machines done in the night."""
+    from . import calendars
+
+    lines = [await weather_line(hass, w), dinner_line(hass, w, now.date().isoformat())]
+    day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    hol = []
+    for c in (c for c in cals if c["kind"] == "holiday"):
+        hol += [e["summary"] for e in await calendars.events(hass, c["entity_id"], day0, day0 + timedelta(days=1)) if e["all_day"] and e["summary"]]
+    lines.append(w["holiday"].format(list=", ".join(dict.fromkeys(hol))) if hol else None)
+    lines.append(night_line(chat, w))
+    return [x for x in lines if x]
+
+
+async def own_lines(hass: HomeAssistant, chat: Any, p: dict[str, Any], adult: bool, cals: list[dict[str, Any]],
+                    now: datetime, w: dict[str, str], chores: dict[str, int] | None) -> list[str]:
+    """Only what is this person's: a child their own school day, birthdays and chores; a grown-up when each child is
+    out of school, the family's calendar today, everyone's chores and the cheapest power."""
+    from . import calendars
+
+    first = (p.get("name") or "").split(" ")[0]
+    day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    lines: list[str | None] = []
+    names = {x["id"]: (x.get("name") or "").split(" ")[0] for x in chat.people()}
+    if adult:
+        out = []
+        for c in (c for c in cals if c["kind"] == "school" and c["person"]):
+            if span := calendars.day_span(await calendars.events(hass, c["entity_id"], day0, day0 + timedelta(days=1))):
+                out.append(f"{names.get(c['person'], '?')} {_hm(span[1])}")
+        lines.append(w["free"].format(list=" · ".join(out)) if out else None)
+        fam = []
+        for c in (c for c in cals if c["kind"] == "family"):
+            for e in await calendars.events(hass, c["entity_id"], day0, day0 + timedelta(days=1)):
+                if e["summary"]:
+                    fam.append(e["summary"] if e["all_day"] else f"{_hm(e['start'])} {e['summary']}")
+        lines.append(w["cal"].format(list=", ".join(fam[:4])) if fam else None)
+        left = [f"{n} {k}" for n, k in (chores or {}).items() if isinstance(k, int) and k > 0]
+        lines.append(w["chores"].format(list=", ".join(left)) if left else None)
+        lines.append(cheap_line(hass, w, now))
+    else:
+        for c in (c for c in cals if c["kind"] == "school" and c["person"] == p["id"]):
+            if span := calendars.day_span(await calendars.events(hass, c["entity_id"], day0, day0 + timedelta(days=1))):
+                lines.append(w["school"].format(a=_hm(span[0]), b=_hm(span[1])))
+        mine = next((k for n, k in (chores or {}).items() if n.split(" ")[0].lower() == first.lower()), 0)
+        lines.append(w["mine"].format(n=mine) if isinstance(mine, int) and mine > 0 else None)
+    today, soon = [], []
+    for c in (c for c in cals if c["kind"] == "birthday" and (c["person"] == p["id"] or (adult and not c["person"]))):
+        for e in await calendars.events(hass, c["entity_id"], day0, day0 + timedelta(days=8)):
+            if not e["summary"]:
+                continue
+            if e["start"].date() == day0.date():
+                today.append(_who(e["summary"], first))
+            elif e["start"].date() == (day0 + timedelta(days=7)).date():
+                soon.append(_who(e["summary"], first))
+    lines.append(w["bday"].format(list=", ".join(today)) if today else None)
+    lines.append(w["bday_soon"].format(list=", ".join(soon)) if soon else None)
+    return [x for x in lines if x]
+
+
+async def for_everyone(hass: HomeAssistant, chat: Any, people: list[dict[str, Any]], now: datetime | None = None) -> list[tuple[dict[str, Any], str, str]]:
+    """[(person, title, text)] - one good morning each, only with what is theirs. Nobody with nothing to say."""
+    from . import calendars
+
+    now, w = now or dt_util.now(), words(hass)
+    cals = calendars.find(hass, chat.people())
+    common = await common_lines(hass, now, chat, cals, w)
+    get = getattr(hass.data.get("pligt_pilot"), "today", None)
+    try:
+        chores = await get() if callable(get) else None
+    except Exception:  # noqa: BLE001
+        chores = None
+    out = []
+    for p in people:
+        lines = common + await own_lines(hass, chat, p, await chat.is_adult(p), cals, now, w, chores)
+        if lines:
+            out.append((p, w["title_p"].format(name=(p.get("name") or "").split(" ")[0]).strip(), "\n".join(lines)))
+    return out

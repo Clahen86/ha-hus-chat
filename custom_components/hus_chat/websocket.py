@@ -45,6 +45,11 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
         # Only what this person may see: a message to others never reaches their screen.
         if kind in ("message", "update") and not (chat.member(uid, admin) and chat.can_see(m, uid)):
             return
+        if kind == "now":
+            from .now import cards_for
+
+            connection.send_message(websocket_api.event_message(msg["id"], {"type": "now", "now": cards_for(chat, chat.now, uid, admin)}))
+            return
         connection.send_message(websocket_api.event_message(msg["id"], {"type": kind, "message": m, "unread": chat.unread(uid, admin)}))
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL, forward)
@@ -54,6 +59,7 @@ async def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
         "member": chat.member(uid, admin), "reads": chat.reads(),
         "unread": chat.unread(uid, admin), "read": chat.read.get(uid, 0), "prefs": chat.get_prefs(uid), "phones": chat.phones_of.get(uid, []),
         "rules": chat.get_rules(), "agents": chat.agents(), "pinned": chat.pinned,
+        "now": __import__(f"{__package__}.now", fromlist=["cards_for"]).cards_for(chat, chat.now, uid, admin),
         "speak": chat.speak_info() if admin else None}))
 
 

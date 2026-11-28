@@ -13,8 +13,8 @@ const T = {
     bubble: "Vis chat-boblen", bubbleH: "Boblen ligger over alt i Home Assistant. Træk den ned på ✕ eller tryk to gange hurtigt på den, så gemmer den sig som en lille fane i kanten – tryk på fanen, eller den kommer selv, når nogen skriver.",
     help: "🛟 Hjælp", close: "Luk", rec: "Optager …", cancel: "Annuller", empty: "Sig hej til familien 👋", emptyH: "Huset skriver også her – fx når vaskemaskinen er færdig.",
     rules: "Beskeder fra huset", rulesH: "Huset skriver selv, når noget sker. Vælg hvem der får hvad.", rulesKid: "Kun en admin kan ændre, hvem der får hvad.",
-    topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm", morning: "☀️ Godmorgen", dinner: "🍽️ Hjemme til aftensmad?" },
-    topicsH: { machines: "Maskiner færdige, og fryser eller affugter med problemer (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra", morning: "Kl. 7: vejret, aftensmad, dagens pligter og billigste strøm", dinner: "En afstemning hver dag – kun dem, der svarer ja, får besked, når maden er klar" },
+    topics: { machines: "🧺 Maskiner færdig", safety: "🔥 Røg, vand og CO", doorbell: "🔔 Det ringer på døren", alarm: "🚨 Alarm", morning: "☀️ Godmorgen", dinner: "🍽️ Hjemme til aftensmad?", waste: "🗑️ Skrald" },
+    topicsH: { machines: "Maskiner færdige, og fryser eller affugter med problemer (fra Maskiner)", safety: "Ringer som en alarm på telefonen – også på lydløs", doorbell: "Med et billede fra kameraet ved døren", alarm: "Når alarmen går, eller slås til og fra", morning: "Kl. 7, til hver især: vejret, aftensmad, skole, fødselsdage og pligter – kun det, der er ens eget", waste: "Aftenen før: hvilken spand der hentes i morgen (fra din affaldskalender)", dinner: "En afstemning hver dag – kun dem, der svarer ja, får besked, når maden er klar" },
     ruleAt: "Spørg kl.",
     toHome: "Hjemme", toAll: "Alle", forMe: "Til mig", always: "Altid", on: "Slået til",
     myPhones: "Mine telefoner", myPhonesH: "Slå en gammel telefon fra, så den ikke får beskeder.", stale: "ikke set i 30 dage – får ingen beskeder",
@@ -23,7 +23,7 @@ const T = {
     clear: "Ryd hele chatten", clearH: "Sletter alle beskeder, billeder og lydbeskeder for alle. Kan ikke fortrydes.", clearAsk: "Slette hele chatten for alle?",
     tomorrow: "I morgen", more: "Mere", pollT: "Afstemning", pollQ: "Spørgsmål", pollOpt: "Svar {n}", pollAdd: "+ Svar", pollSend: "Send afstemning", votes: "{n} stemmer", vote1: "1 stemme",
     onway: "På vej hjem", shopT: "Indkøbsliste", shopAdd: "Tilføj vare", shopNone: "Ingen indkøbsliste i Home Assistant. Tilføj integrationen »Indkøbsliste«.", shopEmpty: "Listen er tom 🎉",
-    onShop: "🛒 På indkøbslisten", remindAt: "⏰ Påmindelse {when}", pin: "Fastgør", unpin: "Fjern fastgørelse", search: "Søg i beskeder", searchNone: "Ingen beskeder passer",
+    onShop: "🛒 På indkøbslisten", remindAt: "⏰ Påmindelse {when}", remindHome: "⏰ Når du kommer hjem", pin: "Fastgør", unpin: "Fjern fastgørelse", search: "Søg i beskeder", searchNone: "Ingen beskeder passer",
     speakT: "Læs højt", speakH: "Husets beskeder siges på en højttaler, når nogen er hjemme – ikke om natten, undtagen alarmer.", speakPick: "– vælg højttaler –", speakTest: "Prøv", speakNoTts: "Ingen tale (TTS) er sat op i Home Assistant.",
     apps: "Chatten som app – uden login", appsH: "Til børn og andre uden en Home Assistant-konto. De åbner linket og vælger »Føj til hjemmeskærm«. Linket giver kun adgang til chatten.",
     appsLocal: "Kun hjemme: Home Assistant har ingen adresse udefra (Nabu Casa).", appName: "Navn", appWho: "Hvem er det?", appAlone: "Kun med navnet", appNew: "Lav link",
@@ -35,8 +35,8 @@ const T = {
     bubble: "Show the chat bubble", bubbleH: "The bubble floats over all of Home Assistant. Drag it onto ✕ or tap it twice quickly and it tucks away as a small tab at the edge – tap the tab, or it comes back when somebody writes.",
     help: "🛟 Help", close: "Close", rec: "Recording …", cancel: "Cancel", empty: "Say hi to the family 👋", emptyH: "The house writes here too – e.g. when the washing machine is done.",
     rules: "Messages from the house", rulesH: "The house writes by itself when something happens. Choose who gets what.", rulesKid: "Only an admin can change who gets what.",
-    topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm", morning: "☀️ Good morning", dinner: "🍽️ Home for dinner?" },
-    topicsH: { machines: "Machines done, and a freezer or dehumidifier in trouble (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed", morning: "At 7: the weather, dinner, today's chores and the cheapest power", dinner: "A poll every day – only those who say yes are told when dinner is ready" },
+    topics: { machines: "🧺 Machines done", safety: "🔥 Smoke, water and CO", doorbell: "🔔 Someone at the door", alarm: "🚨 Alarm", morning: "☀️ Good morning", dinner: "🍽️ Home for dinner?", waste: "🗑️ Bins" },
+    topicsH: { machines: "Machines done, and a freezer or dehumidifier in trouble (from Appliance Watch)", safety: "Rings like an alarm on the phone – also on silent", doorbell: "With a picture from the camera at the door", alarm: "When the alarm goes off, or is armed and disarmed", morning: "At 7, to each of you: the weather, dinner, school, birthdays and chores – only your own", waste: "The evening before: which bin is collected tomorrow (from your waste calendar)", dinner: "A poll every day – only those who say yes are told when dinner is ready" },
     ruleAt: "Ask at",
     toHome: "At home", toAll: "Everyone", forMe: "For me", always: "Always", on: "On",
     myPhones: "My phones", myPhonesH: "Turn an old phone off so it gets no messages.", stale: "not seen for 30 days – gets no messages",
@@ -45,7 +45,7 @@ const T = {
     clear: "Clear the whole chat", clearH: "Deletes every message, picture and voice message for everyone. Can't be undone.", clearAsk: "Delete the whole chat for everyone?",
     tomorrow: "Tomorrow", more: "More", pollT: "Poll", pollQ: "Question", pollOpt: "Answer {n}", pollAdd: "+ Answer", pollSend: "Send poll", votes: "{n} votes", vote1: "1 vote",
     onway: "On my way home", shopT: "Shopping list", shopAdd: "Add item", shopNone: "No shopping list in Home Assistant. Add the “Shopping list” integration.", shopEmpty: "The list is empty 🎉",
-    onShop: "🛒 On the shopping list", remindAt: "⏰ Reminder {when}", pin: "Pin", unpin: "Unpin", search: "Search messages", searchNone: "No messages match",
+    onShop: "🛒 On the shopping list", remindAt: "⏰ Reminder {when}", remindHome: "⏰ When you get home", pin: "Pin", unpin: "Unpin", search: "Search messages", searchNone: "No messages match",
     speakT: "Read aloud", speakH: "The house's messages are said on a speaker when somebody is home – not at night, except alarms.", speakPick: "– pick a speaker –", speakTest: "Try", speakNoTts: "No speech (TTS) is set up in Home Assistant.",
     apps: "The chat as an app – no login", appsH: "For children and others without a Home Assistant account. They open the link and choose “Add to Home Screen”. The link only opens the chat.",
     appsLocal: "Only at home: Home Assistant has no outside address (Nabu Casa).", appName: "Name", appWho: "Who is it?", appAlone: "Just the name", appNew: "Make link",
@@ -88,6 +88,11 @@ const STYLE = `
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 .pinbar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;flex:none}
 .pinbar span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pinbar b{color:#7c5cff;margin-right:4px}
+.nowbar{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex:none;scrollbar-width:none}
+.nowbar::-webkit-scrollbar{display:none}
+.nowbar button{flex:none;border:1px solid var(--cardline);background:linear-gradient(135deg,var(--card1),var(--card2));color:inherit;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;white-space:nowrap;cursor:pointer;animation:nowin .25s ease}
+@keyframes nowin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.card.dim{opacity:.55;padding:7px 12px;min-width:0}.card.dim .h{font-size:13px;font-weight:600}
 .srch{flex:1;min-width:0;padding:9px 12px;border-radius:20px;border:1px solid var(--line);background:var(--bubble);color:var(--text);font:inherit;font-size:15px;outline:none}
 .b.poll{min-width:220px;max-width:100%;white-space:normal}.poll .q{font-weight:650;margin-bottom:8px}.poll button{position:relative;display:block;width:100%;text-align:left;margin-top:6px;padding:9px 12px;border-radius:12px;background:var(--line);overflow:hidden;font:inherit;font-size:14px}
 .poll button i{position:absolute;inset:0 auto 0 0;background:linear-gradient(135deg,#ff6b8a55,#7c5cff55);border-radius:12px}.poll button span{position:relative;display:flex;justify-content:space-between;gap:8px}.poll button.mine{box-shadow:inset 0 0 0 2px #7c5cff}
@@ -224,7 +229,7 @@ class HusChatView extends HTMLElement {
   onEvent(e) {
     if (e.type === "init") {
       Object.assign(this, { msgs: e.messages, people: e.people, me: e.me, prefs: e.prefs, phones: e.phones || [], rules: e.rules || {}, agents: e.agents || null,
-        reads: e.reads || {}, member: e.member !== false, pinned: e.pinned || null, speak: e.speak || null, ready: true });
+        reads: e.reads || {}, member: e.member !== false, pinned: e.pinned || null, speak: e.speak || null, now: e.now || [], ready: true });
       this.paintTop(); this.paintList(true); this.presence();
       if (window.HUS_CHAT_APP && !this.rec && !this.listening) this.paintBar();  // the house button comes with "me" (allowed or not)
     } else if (e.type === "message") {
@@ -239,6 +244,8 @@ class HusChatView extends HTMLElement {
       this.msgs = []; this.paintList(true);
     } else if (e.type === "pin") {
       this.pinned = e.message.id; this.paintPin(); return;
+    } else if (e.type === "now") {
+      this.now = e.now || []; this.paintNow(); return;
     } else if (e.type === "read") {
       this.reads[e.message.who] = e.message.t; this.paintSeen(); return;
     }
@@ -290,10 +297,18 @@ class HusChatView extends HTMLElement {
   paintPin() {  // the pinned message under the top - tap it to find it
     this.$(".pinbar")?.remove();
     const m = !this.sheet && this.pinned && this.msgs.find((x) => x.id === this.pinned);
-    if (!m) return;
+    if (!m) { this.paintNow(); return; }
     const el = document.createElement("div"); el.className = "pinbar"; el.dataset.a = "gopin";
     el.innerHTML = `<span><b>📌</b>${esc(m.name || "")}: ${esc(m.text || m.title || "")}</span>`;
     this.$(".top").after(el);
+    this.paintNow();
+  }
+  paintNow() {  // "Lige nu": what matters right now, on top - it changes by itself and goes when it's over (now.py)
+    this.$(".nowbar")?.remove();
+    if (this.sheet || this.searching || !(this.now || []).length) return;
+    const el = document.createElement("div"); el.className = "nowbar";
+    el.innerHTML = this.now.map((c) => `<button data-a="gonow" data-id="${esc(c.msg || "")}">${c.icon ? esc(c.icon) + " " : ""}${esc(c.text)}</button>`).join("");
+    (this.$(".pinbar") || this.$(".top")).after(el);
   }
   day(ts) {
     const d = new Date(ts * 1000), now = new Date(), t = this.t;
@@ -319,6 +334,11 @@ class HusChatView extends HTMLElement {
     let body = "";
     if (m.kind === "house") {
       const bang = m.urgent ? `<span class="urgent">!</span>` : "";
+      if (m.done) {  // over (emptied, answered): small and quiet - who took it is still there
+        body = `<div class="card dim"><div class="h">✓ ${esc(m.title || m.text || "")}</div>${m.title && m.text ? `<div class="s">${esc(m.text)}</div>` : ""}
+        ${m.image ? `<img class="pic" style="margin-top:6px;max-height:140px" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="">` : ""}</div>
+        ${m.taken ? `<div class="done">${t.took.replace("{name}", m.taken.by === this.me?.id ? t.you : esc(m.taken.name || "?"))}</div>` : ""}`;
+      } else
       body = `<div class="card${m.urgent && !m.taken ? " hot" : ""}">${m.title ? `<div class="h">${bang}${esc(m.title)}</div>` : ""}${m.text ? `<div class="${m.title ? "s" : "h"}">${m.title ? "" : bang}${esc(m.text)}</div>` : ""}
         ${m.poll ? `<div class="poll" style="margin-top:6px">${this.pollHtml(m)}</div>` : ""}
         ${m.image ? `<img class="pic" style="margin-top:8px" src="${media(m.image)}" data-a="zoom" loading="lazy" alt="">` : ""}
@@ -333,7 +353,8 @@ class HusChatView extends HTMLElement {
       } else if (m.text) body += `<div class="b${house ? " house" : ""}">${m.reply ? `<div class="quote">${esc(m.reply.name)}: ${esc(m.reply.text)}</div>` : ""}${m.kind === "to_house" ? `<span class="lbl">🏠 ${t.toHouse}</span>` : ""}${esc(m.text)}${m.edited ? `<span class="ed">(${t.edited})</span>` : ""}${m.note ? `<span class="note">ⓘ ${esc(m.note)}</span>` : ""}</div>`;
     }
     if (m.shop) body += `<span class="tag">${t.onShop}: ${esc(m.shop.join(", "))}</span>`;
-    if (m.remind) body += `<span class="tag">${esc(t.remindAt.replace("{when}", `${this.day(m.remind).toLowerCase()} ${this.hm(m.remind)}`))}</span>`;
+    if (m.remind_home) body += `<span class="tag">${esc(t.remindHome)}</span>`;
+    else if (m.remind) body += `<span class="tag">${m.remind_every ? "🔁 " : ""}${esc(t.remindAt.replace("{when}", `${this.day(m.remind).toLowerCase()} ${this.hm(m.remind)}`))}</span>`;
     const rx = Object.entries(m.reactions || {});
     if (rx.length) body += `<div class="reacts">${rx.map(([e, who]) => `<button class="${who.includes(this.me?.id) ? "mine" : ""}" data-a="react" data-id="${esc(m.id)}" data-e="${esc(e)}">${e} ${who.length}</button>`).join("")}</div>`;
     const fresh = this._seen && !this._seen.has(m.id);
@@ -797,9 +818,9 @@ class HusChatView extends HTMLElement {
     else if (a === "shopadd") { const i = this.$("[data-shopadd]"); if (i?.value.trim()) this.shopDo({ add: i.value }); }
     else if (a === "shopdone") { b.style.background = "#7c5cff"; this.shopDo({ done: b.dataset.u }); }
     else if (a === "pin") { this.shadowRoot.querySelector(".acts")?.remove(); this.extra("pin", { message: b.dataset.id || null }).catch(() => this.error(this.t.failed)); }
-    else if (a === "gopin") {
+    else if (a === "gopin" || (a === "gonow" && b.dataset.id)) {
       if (this.searching) { this.searching = false; this.q = ""; this.paintTop(); this.paintList(false); }
-      const row = this.shadowRoot.querySelector(`[data-a="msg"][data-id="${CSS.escape(this.pinned)}"]`);
+      const row = this.shadowRoot.querySelector(`[data-a="msg"][data-id="${CSS.escape(a === "gonow" ? b.dataset.id : this.pinned)}"]`);
       row?.scrollIntoView({ block: "center", behavior: "smooth" });
       row?.animate([{ background: "#7c5cff33" }, { background: "transparent" }], { duration: 1600 });
     }

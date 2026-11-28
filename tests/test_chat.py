@@ -182,7 +182,7 @@ async def test_machine_done_then_emptied(hass: HomeAssistant, chat) -> None:
     assert len(calls["Lilly"]) == 1 and not calls["Wictor"]  # only those at home
     hass.bus.async_fire("appliance_watch_emptied", {"entry_id": "e1", "name": "Vaskemaskine"})
     await hass.async_block_till_done()
-    assert m["taken"]["by"] == HOUSE
+    assert m["taken"]["by"] == HOUSE and m["done"]
     assert calls["Lilly"][-1].data["message"] == "clear_notification"
 
 
@@ -297,7 +297,7 @@ async def test_falls_back_to_home_assistant_when_the_ai_cant_answer(hass: HomeAs
         return _reply("h", "error", "Undskyld, det forstod jeg ikke")
 
     with _fake_conversation(SimpleNamespace(async_converse=converse)):
-        m = await c.ask_house("u-claus", "Hvad skal vi have at spise?")
+        m = await c.ask_house("u-claus", "Hvordan bliver vejret i weekenden?")
         assert seen == [None, "conversation.google_ai", None]
         assert m["text"] == "Undskyld, det forstod jeg ikke" and "Google AI" in m["note"]
         await c.ask_house("u-claus", "Og i morgen?")

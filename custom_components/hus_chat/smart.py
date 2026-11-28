@@ -14,10 +14,21 @@ SHOP = re.compile(r"^\s*(?:husk(?:\s+at)?\s+)?(?:køb|kjøp|köp|buy|get)\s+(?:l
 SPLIT = re.compile(r"\s*(?:,|\bog\b|\band\b|\boch\b|\+)\s*", re.I)
 
 
+# "vi mangler mælk", "vi er løbet tør for kaffe", "tom for bleer" - short and plain, or it's just a sentence ("vi mangler
+# dig til fodbold" isn't shopping: a person or a vague word ends it).
+NEED = re.compile(r"^\s*(?:vi\s+)?(?:mangler|er\s+(?:løbet\s+)?tør\s+for|er\s+tom(?:me)?\s+for|har\s+ikke\s+mere|tom\s+for|løbet\s+tør\s+for"
+                  r"|we(?:'re|\s+are)?\s+(?:out\s+of|need)|out\s+of|vi\s+(?:trenger|behöver)|tomt\s+for|slut\s+på)\s+(?:mere\s+|noget\s+|some\s+|more\s+)?(.+?)\s*[.!]*$", re.I)
+NOT_THINGS = {"dig", "jer", "dem", "ham", "hende", "mig", "os", "en", "et", "nogen", "noget", "tid", "hjælp", "penge", "you", "time", "help",
+              "someone", "deg", "dere", "meg", "dig själv", "lige", "bare"}
+
+
 def shop_items(text: str) -> list[str]:
-    """"køb mælk, brød og æg" -> ["Mælk", "Brød", "Æg"]. Nothing for an ordinary message."""
-    m = SHOP.match(text or "")
-    if not m or len(m.group(1)) > 120 or "?" in text:
+    """"køb mælk, brød og æg" / "vi mangler mælk og brød" -> ["Mælk", "Brød", "Æg"]. Nothing for an ordinary message."""
+    m = SHOP.match(text or "") or NEED.match(text or "")
+    if not m or len(m.group(1)) > 120 or "?" in text or len((text or "").split()) > 14:
+        return []
+    first = m.group(1).split()[0].lower().strip(" .!,") if m.group(1).split() else ""
+    if first in NOT_THINGS:
         return []
     out = []
     for x in SPLIT.split(m.group(1)):
@@ -60,6 +71,10 @@ def _num(word: str) -> float:
     return 1 if w in ("en", "et", "ett", "an", "a", "one") else float(w)
 
 
+HOME = re.compile(r"\s*,?\s*(?:når|naar|when|nar)\s+(?:jeg|vi|I|we)\s+(?:kommer|er|kjem|get|am|are)\s+(?:hjem(?:me)?|home)\b", re.I)
+EVERY = re.compile(r"\b(?:hver|hvert|every|varje|hver eneste)\s+(dag|day|dygn|" + "|".join(DAYS) + r")(?:\s+" + CLOCK + r")?", re.I)
+
+
 def reminder(text: str, now: datetime) -> dict | None:
     """"mind mig om tandlæge i morgen kl. 8" -> {"when": tomorrow 08:00, "what": "tandlæge", "all": False}.
     None when it isn't a reminder, or no time was given (then nothing is guessed)."""
@@ -68,6 +83,27 @@ def reminder(text: str, now: datetime) -> dict | None:
         return None
     who, rest = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
     everyone = who.lower() in ("os", "oss", "oss alla", "alle", "us")
+    if h := HOME.search(rest):  # "... når jeg kommer hjem": when the phone says home, not at a time
+        what = (rest[:h.start()] + " " + rest[h.end():]).strip(" ,.!")
+        what = re.sub(r"^(?:at|att|to)\s+", "", what, flags=re.I)
+        return {"when": None, "home": True, "what": what[0].upper() + what[1:], "all": everyone} if what else None
+    if e := EVERY.search(rest):  # "hver tirsdag kl. 18": again every week (or every day)
+        word = e.group(1).lower()
+        hm = _hm(e.group(2), e.group(3), e.group(4), (8, 0))
+        if not hm:
+            return None
+        day = None if word in ("dag", "day", "dygn") else DAYS[word]
+        when = now.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
+        if day is None:
+            when = when if when > now else when + timedelta(days=1)
+        else:
+            ahead = (day - now.weekday()) % 7
+            when = when + timedelta(days=ahead)
+            if when <= now:
+                when += timedelta(days=7)
+        what = (rest[:e.start()] + " " + rest[e.end():]).strip(" ,.!")
+        what = re.sub(r"^(?:at|att|to)\s+", "", what, flags=re.I)
+        return {"when": when, "every": 1 if day is None else 7, "what": what[0].upper() + what[1:], "all": everyone} if what else None
     for pat, kind in PATTERNS:
         f = pat.search(rest)
         if not f:
@@ -124,3 +160,22 @@ def eta_minutes(lat: float | None, lon: float | None, home_lat: float, home_lon:
     if km < 0.3:
         return 0
     return max(5, int(round((km / (35 if km < 15 else 60) * 60 + 3) / 5) * 5))
+
+
+# ---------- questions the house answers itself (before Assist) ----------
+QUESTIONS = (
+    ("dinner", re.compile(r"hvad\s+skal\s+vi\s+(?:have\s+(?:at\s+)?)?spise|hvad\s+er\s+der\s+til\s+aftensmad|hvad\s+får\s+vi\s+at\s+spise|what'?s\s+for\s+dinner|hva\s+skal\s+vi\s+spise", re.I)),
+    ("home", re.compile(r"hvem\s+er\s+(?:hjemme|her)|who'?s\s+(?:at\s+)?home|who\s+is\s+(?:at\s+)?home|hvem\s+er\s+hjemme", re.I)),
+    ("waste", re.compile(r"(?:hvornår|hvorn[aå]r|when)\b.*\b(?:skrald|affald|spand|renovation|bin|bins|garbage|søppel)", re.I)),
+    ("school", re.compile(r"(?:hvornår|when)\s+(?:har|is|får)\s+(\w+)\s+(?:fri|out|done|færdig)", re.I)),
+    ("cheap", re.compile(r"(?:hvornår|when)\b.*\b(?:strøm\w*|strom\w*|el|power|electricity)\b.*\b(?:billig|cheap)|billigst\s+strøm|cheapest\s+power", re.I)),
+    ("mine", re.compile(r"hvad\s+skal\s+jeg\s+(?:nå|naa|lave|gøre)\s+i\s+dag|mine\s+pligter|what\s+do\s+i\s+have\s+(?:to\s+do\s+)?today", re.I)),
+)
+
+
+def question(text: str) -> tuple[str, str | None] | None:
+    """("school", "Holly") for "hvornår har Holly fri?" - None when it isn't one of the house's own questions."""
+    for kind, pat in QUESTIONS:
+        if m := pat.search(text or ""):
+            return kind, (m.group(1) if m.groups() else None)
+    return None
