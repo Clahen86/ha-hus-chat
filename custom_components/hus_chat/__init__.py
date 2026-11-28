@@ -72,6 +72,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HusChatConfigEntry) -> b
 
     if unregister := voice.setup(hass, chat):  # the house's own questions by voice, before the AI
         entry.async_on_unload(unregister)
+    from . import llm_tools
+
+    if undo := llm_tools.register(hass):  # the tools your AI may look the family's day up with
+        entry.async_on_unload(undo)
 
     async def send(call: ServiceCall) -> ServiceResponse:
         image = None

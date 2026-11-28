@@ -72,7 +72,9 @@ def setup(hass: HomeAssistant, chat: Any) -> CALLBACK_TYPE | None:
         uid = getattr(getattr(user_input, "context", None), "user_id", None)
         # A speaker in the house (a voice satellite) is like the timetable on the fridge; text without anyone signed in
         # isn't.
-        speaker = uid is None and bool(getattr(user_input, "satellite_id", None) or getattr(user_input, "device_id", None))
+        from .llm_tools import is_speaker
+
+        speaker = uid is None and (bool(getattr(user_input, "satellite_id", None)) or is_speaker(hass, getattr(user_input, "device_id", None)))
         try:
             got = await chat.local_answer(uid, user_input.text, speaker=speaker)
         except Exception:  # noqa: BLE001 - never stops Assist

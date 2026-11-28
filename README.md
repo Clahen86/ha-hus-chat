@@ -49,7 +49,7 @@ Found in your Home Assistant – nothing to set up:
 
 **Lige nu** on top of the chat shows what matters right now – a machine waiting, who is on the way home, tonight's dinner – and goes by itself when it's over. Done tasks are gone from every phone.
 
-**Ask the house** your own way: "what's for dinner?", "when are the bins collected?", "when is Holly out of school on Wednesday?", "when are the kids out of school?" – answered at once. By voice too: Assist on the phone or a speaker asks House Chat first.
+**Ask the house** your own way: "what's for dinner?", "when are the bins collected?", "when is Holly out of school on Wednesday?", "when are the kids out of school?" – answered at once. By voice too: Assist on the phone or a speaker asks House Chat first. And your AI can ask House Chat in your own words – turn on **House Chat** once in the assistant's settings.
 
 Under ⚙️ → **Messages from the house** an admin picks who gets each kind: *at home*, *everyone* or chosen persons. Each person can turn a kind off for themselves – except smoke and water. If nobody takes a message within 10 minutes, it goes to everyone.
 
@@ -129,7 +129,7 @@ Til børn og andre uden en Home Assistant-konto: under ⚙️ → **Chatten som 
 
 **Lige nu** øverst i chatten viser det, der er vigtigt lige nu – en maskine der venter, hvem der er på vej hjem, aftensmaden – og forsvinder af sig selv, når det er overstået. Klarede opgaver forsvinder fra alle telefoner.
 
-**Spørg huset** på din egen måde: "hvad skal vi spise?", "hvornår er der skrald?", "hvornår har Holly fri på onsdag?", "hvornår har børnene fri?" – svar med det samme. Også med stemmen: Assist på telefonen eller en højttaler spørger Hus-chat først.
+**Spørg huset** på din egen måde: "hvad skal vi spise?", "hvornår er der skrald?", "hvornår har Holly fri på onsdag?", "hvornår har børnene fri?" – svar med det samme. Også med stemmen: Assist på telefonen eller en højttaler spørger Hus-chat først. Og din AI kan spørge Hus-chat med dine egne ord – slå **House Chat** til én gang i assistentens indstillinger.
 
 Under ⚙️ → **Beskeder fra huset** vælger en admin, hvem der får hvad: *hjemme*, *alle* eller bestemte personer. Hver person kan slå en slags fra for sig selv – undtagen røg og vand. Tager ingen en besked inden 10 minutter, går den til alle.
 

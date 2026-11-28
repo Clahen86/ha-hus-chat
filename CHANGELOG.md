@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.15.0 – 2026-11-28
+
+- Ask your AI about the family's day in your own words: school, dinner any day, the bins, your own day – House Chat gives Home Assistant's AI assistants a tool to look it up (turn on "House Chat" once in the assistant's settings). The same rules as in the chat: a child's school day only to that child, a grown-up or a speaker in the house
+- A speaker counts only when it really is one (an Assist satellite) – not any device asking without a user
+
 ## 0.14.2 – 2026-11-28
 
 - Ask by voice: Assist on the phone or a speaker now answers the house's own questions from House Chat first – "when is Lilly out of school on Wednesday?", "what's for dinner tomorrow?", "when are the bins collected?" – everything else goes on to your AI as before. Nothing to set up (it needs "prefer handling commands locally", on by default)

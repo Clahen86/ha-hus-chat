@@ -30,9 +30,17 @@ async def test_school_by_voice_on_the_day_asked(hass: HomeAssistant, chat) -> No
     wed = (now + timedelta(days=(2 - now.weekday()) % 7 or 7)).replace(hour=0, minute=0, second=0, microsecond=0)
     _calendars(hass, {"calendar.skema_lilly": [{"summary": "Dansk", "start": (wed + timedelta(hours=8)).isoformat(),
                                                "end": (wed + timedelta(hours=13, minutes=50)).isoformat()}]})
-    said = await _ask(hass, "hvornår har Lilly fri på onsdag", device="speaker_kitchen")  # a speaker in the house
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    sat_entry = MockConfigEntry(domain="esphome")
+    sat_entry.add_to_hass(hass)
+    dev = dr.async_get(hass).async_get_or_create(config_entry_id=sat_entry.entry_id, identifiers={("esphome", "kitchen")})
+    er.async_get(hass).async_get_or_create("assist_satellite", "esphome", "kitchen", device_id=dev.id, config_entry=sat_entry)
+    said = await _ask(hass, "hvornår har Lilly fri på onsdag", device=dev.id)  # a speaker in the house
     assert "Lilly har fri" in said and "13:50" in said and "🎒" not in said  # spoken: no emoji
-    assert "13:50" in await _ask(hass, "har Lilly skole onsdag", device="speaker_kitchen")
+    assert "13:50" in await _ask(hass, "har Lilly skole onsdag", device=dev.id)
+    assert "13:50" not in await _ask(hass, "har Lilly skole onsdag", device="some_other_device")  # not a speaker
     unreg()
 
 
@@ -64,3 +72,21 @@ async def test_text_without_a_user_is_no_speaker(hass: HomeAssistant, chat) -> N
 
 def test_spoken_without_emoji() -> None:
     assert voice.spoken("🎒 Lilly har fri onsdag kl. 13:50\n🎒 Holly har fri onsdag kl. 14:00") == "Lilly har fri onsdag kl. 13:50. Holly har fri onsdag kl. 14:00"
+
+
+async def test_the_ai_tool(hass: HomeAssistant, chat) -> None:  # noqa: F811
+    from homeassistant.helpers import llm
+
+    c, _ = chat
+    now = dt_util.now()
+    wed = (now + timedelta(days=(2 - now.weekday()) % 7 or 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    _calendars(hass, {"calendar.skema_lilly": [{"summary": "Dansk", "start": (wed + timedelta(hours=8)).isoformat(),
+                                               "end": (wed + timedelta(hours=13, minutes=50)).isoformat()}]})
+    ctx = llm.LLMContext(platform="test", context=Context(user_id="u-lilly"), language="da", assistant="conversation", device_id=None)
+    api = await llm.async_get_api(hass, "hus_chat", ctx)
+    r = await api.async_call_tool(llm.ToolInput(tool_name="hus_chat_family_day", tool_args={"topic": "school", "child": "Lilly", "day": "wednesday"}))
+    assert "13:50" in getattr(r, "data", r)["answer"]
+    ctx2 = llm.LLMContext(platform="test", context=Context(user_id="u-wictor"), language="da", assistant="conversation", device_id=None)
+    api2 = await llm.async_get_api(hass, "hus_chat", ctx2)
+    r2 = await api2.async_call_tool(llm.ToolInput(tool_name="hus_chat_family_day", tool_args={"topic": "school", "child": "Lilly", "day": "wednesday"}))
+    assert "13:50" not in str(getattr(r2, "data", r2))  # another child: not theirs
